@@ -63,6 +63,7 @@ p{margin:0}
 /* top bar */
 .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .brand{display:flex;align-items:center;gap:10px;font-family:var(--f-display);font-weight:800;font-size:1.2rem;letter-spacing:-.01em}
+.ver{font-family:var(--f-mono);font-size:.72rem;font-weight:500;color:var(--ink-3);letter-spacing:.02em}
 .balls{display:flex;align-items:flex-end;gap:3px}
 .balls i{display:block;border-radius:50%;background:var(--accent)}
 .balls i:nth-child(1){width:6px;height:6px;opacity:.5}
@@ -283,7 +284,7 @@ footer p+p{margin-top:6px}
 <body>
 <div class="wrap">
   <header class="topbar">
-    <div class="brand"><span class="balls" aria-hidden="true"><i></i><i></i><i></i></span>Debt Snowball</div>
+    <div class="brand"><span class="balls" aria-hidden="true"><i></i><i></i><i></i></span>Debt Snowball<span class="ver" title="Version 4.1, 11/11/2026">v4.1</span></div>
     <span class="savepill" id="savePill" data-s="example">Examples, not saved</span>
   </header>
 
