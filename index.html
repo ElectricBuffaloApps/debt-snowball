@@ -205,6 +205,7 @@ fieldset.field legend{font-weight:600;font-size:.9rem;padding:0;margin-bottom:8p
 .field{display:flex;flex-direction:column;gap:5px;min-width:0}
 .field label{font-weight:600;font-size:.9rem}
 .field .fh{font-size:.8rem;color:var(--ink-3)}
+.pair{display:flex;gap:8px}.pair input{flex:1 1 auto;min-width:0}.pair select{flex:0 0 auto;width:auto;min-width:4.2rem}
 input[type=text],input[type=number],input[type=date],select,textarea{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:10px 12px;width:100%;min-width:0}
 select:focus-visible{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
 textarea{font-family:var(--f-mono);font-size:.8rem;min-height:110px;resize:vertical}
@@ -284,7 +285,7 @@ footer p+p{margin-top:6px}
 <body>
 <div class="wrap">
   <header class="topbar">
-    <div class="brand"><span class="balls" aria-hidden="true"><i></i><i></i><i></i></span>Debt Snowball<span class="ver" title="Version 4.2, 11/11/2026">v4.2</span></div>
+    <div class="brand"><span class="balls" aria-hidden="true"><i></i><i></i><i></i></span>Debt Snowball<span class="ver" title="Version 4.3, 11/11/2026">v4.3</span></div>
     <span class="savepill" id="savePill" data-s="example">Examples, not saved</span>
   </header>
 
@@ -364,10 +365,10 @@ footer p+p{margin-top:6px}
       <p class="note">Put in the details of a balance transfer or money transfer offer, then pick which debts you'd move to it.</p>
       <div class="fgrid">
         <div class="field full"><label for="oName">Deal name</label><input id="oName" type="text" maxlength="60" placeholder="e.g. Barclaycard 0% balance transfer" autocomplete="off"></div>
-        <div class="field"><label for="oRate">Deal rate (%)</label><input id="oRate" type="number" inputmode="decimal" min="0" max="100" step="0.01" placeholder="0"><span class="fh">0 for a 0% deal, or the low rate if it isn't 0%</span></div>
+        <div class="field"><label for="oRate">Deal rate (%)</label><div class="pair"><input id="oRate" type="number" inputmode="decimal" min="0" max="100" step="0.01" placeholder="0"><select class="rateUnit" aria-label="Rate for a year or for a month"><option value="year">a year (APR)</option><option value="month">a month</option></select></div><span class="fh eq" hidden></span><span class="fh">0 for a 0% deal, or the low rate if it isn't 0%</span></div>
         <div class="field"><label for="oMonths">Deal lasts how many months</label><input id="oMonths" type="number" inputmode="numeric" min="1" max="60" step="1"></div>
-        <div class="field"><label for="oFee">Transfer fee (%)</label><input id="oFee" type="number" inputmode="decimal" min="0" max="20" step="0.01"><span class="fh">Put 0 if there's no fee</span></div>
-        <div class="field"><label for="oApr">Interest rate after the deal ends (APR %)</label><input id="oApr" type="number" inputmode="decimal" min="0" max="100" step="0.01"></div>
+        <div class="field"><label for="oFee">Transfer fee</label><div class="pair"><input id="oFee" type="number" inputmode="decimal" min="0" step="0.01"><select id="oFeeType" aria-label="Fee as a percentage or in pounds"><option value="pct">%</option><option value="amt">£</option></select></div><span class="fh">A % of what you move, or a set amount in pounds. Put 0 if there's no fee.</span></div>
+        <div class="field"><label for="oApr">Interest rate after the deal ends (%)</label><div class="pair"><input id="oApr" type="number" inputmode="decimal" min="0" max="100" step="0.01"><select class="rateUnit" aria-label="Rate for a year or for a month"><option value="year">a year (APR)</option><option value="month">a month</option></select></div><span class="fh eq" hidden></span></div>
         <div class="field"><label for="oLimit">Credit limit (£)</label><input id="oLimit" type="number" inputmode="decimal" min="0" step="1"><span class="fh">Optional, but needed to see the effect on your credit use. Assumes the fee counts towards the limit.</span></div>
         <div class="field"><label for="oMin">Minimum monthly payment (£)</label><input id="oMin" type="number" inputmode="decimal" min="0" step="0.01"><span class="fh">Optional. Blank keeps the minimums of the debts you move.</span></div>
         <fieldset class="field full"><legend>Debts to move</legend><div class="picks" id="oPicks"></div></fieldset>
@@ -402,7 +403,7 @@ footer p+p{margin-top:6px}
         <div class="field" data-single><label for="fBalance">Balance owed (£)</label><input id="fBalance" type="number" inputmode="decimal" min="0" step="0.01"></div>
         <div class="field"><label for="fMin">Minimum monthly payment (£)</label><input id="fMin" type="number" inputmode="decimal" min="0" step="0.01"><span class="fh">From your statement. Leave blank or put 0 if there isn't one, like a buy-now-pay-later plan.</span></div>
         <div class="field"><label for="fLimit">Credit limit (£)</label><input id="fLimit" type="number" inputmode="decimal" min="0" step="1"><span class="fh">For credit cards, store cards and overdrafts. Leave blank for loans.</span></div>
-        <div class="field" data-single><label for="fApr">Interest rate now (APR %)</label><input id="fApr" type="number" inputmode="decimal" min="0" max="100" step="0.01"><span class="fh">Use 0 if it's on a 0% deal</span></div>
+        <div class="field" data-single><label for="fApr">Interest rate now (%)</label><div class="pair"><input id="fApr" type="number" inputmode="decimal" min="0" max="100" step="0.01"><select class="rateUnit" aria-label="Rate for a year or for a month"><option value="year">a year (APR)</option><option value="month">a month</option></select></div><span class="fh eq" hidden></span><span class="fh">Use 0 if it's on a 0% deal</span></div>
         <div class="full dealbox partsbox" id="partsBox" hidden>
           <p class="fh">Put in each balance from your statement. Card lenders have to put your payments on the highest-rate balance first, after any instalment plan payment, so you can't choose which balance a payment goes to.</p>
           <div id="partRows"></div>
@@ -413,7 +414,7 @@ footer p+p{margin-top:6px}
         <div class="full dealbox fgrid" id="dealFields" hidden>
           <p class="fh full">Several plans on one store card? Add each plan as its own debt so every end date shows.</p>
           <div class="field"><label for="fEnd">Deal ends on</label><input id="fEnd" type="date"></div>
-          <div class="field"><label for="fRevert">Interest rate after it ends (APR %)</label><input id="fRevert" type="number" inputmode="decimal" min="0" max="100" step="0.01"><span class="fh">Usually in the deal's terms or on your statement</span></div>
+          <div class="field"><label for="fRevert">Interest rate after it ends (%)</label><div class="pair"><input id="fRevert" type="number" inputmode="decimal" min="0" max="100" step="0.01"><select class="rateUnit" aria-label="Rate for a year or for a month"><option value="year">a year (APR)</option><option value="month">a month</option></select></div><span class="fh eq" hidden></span><span class="fh">Usually in the deal's terms or on your statement</span></div>
           <div class="field full"><label class="check"><input id="fBack" type="checkbox"> Interest is backdated to the start if it isn't cleared in time</label><span class="fh">Some store card plans work this way. Check your agreement. These deals get first call on your money.</span></div>
         </div>
       </div>
@@ -576,7 +577,8 @@ function normalisePart(p, i){
     revertApr: plan ? 0 : clamp(num(p.revertApr), 0, 100),
     plan: plan,
     planPay: plan ? Math.max(0, num(p.planPay)) : 0,
-    fee: plan ? Math.max(0, num(p.fee)) : 0
+    fee: plan ? (p.feeType === 'pct' ? clamp(num(p.fee), 0, 100) : Math.max(0, num(p.fee))) : 0,
+    feeType: plan && p.feeType === 'pct' ? 'pct' : 'amt'
   };
 }
 function normalise(o){
@@ -622,7 +624,8 @@ function normalise(o){
         name: String(f.name || '0% deal').slice(0, 60),
         months: clamp(Math.round(num(f.months, 12)), 1, 60),
         rate: clamp(num(f.rate), 0, 100),
-        fee: clamp(num(f.fee), 0, 20),
+        fee: f.feeType === 'amt' ? Math.max(0, num(f.fee)) : clamp(num(f.fee), 0, 20),
+        feeType: f.feeType === 'amt' ? 'amt' : 'pct',
         apr: clamp(num(f.apr), 0, 100),
         limit: (f.limit === null || f.limit === undefined || f.limit === '') ? null : Math.max(0, num(f.limit)),
         minPay: (f.minPay === null || f.minPay === undefined || f.minPay === '') ? null : Math.max(0, num(f.minPay)),
@@ -733,7 +736,7 @@ function partKey(d, p){ return d.id + '/' + p.id; }
 function partsOf(d){
   if (!isSplit(d)) return [{key:d.id, label:'', index:0, balance:d.balance, apr:d.apr, promoEnd:d.promoEnd, revertApr:d.revertApr, backdated:!!d.backdated, plan:false, planPay:0}];
   return d.parts.map(function(p, i){
-    return {key:partKey(d, p), label:p.label, index:i, balance:p.balance, apr:p.apr, promoEnd:p.promoEnd, revertApr:p.revertApr, backdated:false, plan:!!p.plan, planPay:p.planPay || 0, fee:p.fee || 0};
+    return {key:partKey(d, p), label:p.label, index:i, balance:p.balance, apr:p.apr, promoEnd:p.promoEnd, revertApr:p.revertApr, backdated:false, plan:!!p.plan, planPay:p.planPay || 0, fee:p.fee || 0, feeType:p.feeType === 'pct' ? 'pct' : 'amt'};
   });
 }
 // instalment plans: payments left at a fixed monthly amount, and the amount that clears a balance in a set number of payments
@@ -920,7 +923,7 @@ function rateText(p){
     var left = planMonths(p.balance, p.apr, p.planPay);
     return rate(p.apr) + ', instalment plan at ' + money(p.planPay) + ' a month' +
       (left ? ', ' + plural(left, 'payment') + ' left (ends ' + mShort(addMonths(startOfMonth(new Date()), left - 1)) + ')' : '') +
-      (p.fee > 0.004 ? ', includes a ' + money(p.fee) + ' fee' : '');
+      (p.fee > 0.004 ? ', includes a ' + (p.feeType === 'pct' ? rate(p.fee) : money(p.fee)) + ' fee' : '');
   }
   if (p.promoEnd) return dealEnded(p) ? rate(p.revertApr) + ' APR (deal ended ' + ukDate(p.promoEnd) + ')' : rate(p.apr) + ' until ' + ukDate(p.promoEnd) + ', then ' + rate(p.revertApr) + ' APR';
   return rate(p.apr) + ' APR';
@@ -1243,7 +1246,10 @@ function xferItems(sim){
   xferCache = {sim:sim, items:items};
   return items;
 }
-function feeText(it){ return (Math.floor(it.pct * 10) / 10) + '%'; }
+// the dearest fee a switch could carry and still break even, as a share of the balance and in pounds
+function feeText(it){ return (Math.floor(it.pct * 10) / 10) + '% (' + moneyR(Math.floor(it.save)) + ')'; }
+// an offer's fee as it was typed: a share of what moves, or a set amount
+function offerFee(f){ return f.feeType === 'amt' ? money(f.fee) : rate(f.fee); }
 // the same debt with one balance (or the whole of an ordinary debt) charging nothing
 function interestFree(d, key){
   var free = {apr:0, promoEnd:'', revertApr:0};
@@ -1340,7 +1346,8 @@ function renderFocus(sim){
 }
 
 function moveToOffer(debts, f){
-  var fee = f.fee / 100, cap = f.limit ? f.limit / (1 + fee) : Infinity;
+  var setFee = f.feeType === 'amt', fee = setFee ? 0 : f.fee / 100;
+  var cap = f.limit ? (setFee ? Math.max(0, f.limit - f.fee) : f.limit / (1 + fee)) : Infinity;
   var start1 = addMonths(startOfMonth(new Date()), 1);
   var out = debts.map(function(d){
     var copy = Object.assign({}, d);
@@ -1380,7 +1387,7 @@ function moveToOffer(debts, f){
     d.startBalance = Math.max(d.balance, Math.round((d.startBalance - took[d.id]) * 100) / 100);
     if (empty && !(d.limit > 0) && d.startBalance <= 0.004) drop[d.id] = 1;
   });
-  var feeAmt = Math.round(moved * fee * 100) / 100;
+  var feeAmt = setFee ? (moved > 0.004 ? Math.round(f.fee * 100) / 100 : 0) : Math.round(moved * fee * 100) / 100;
   var t = new Date(), last = new Date(t.getFullYear(), t.getMonth() + f.months + 1, 0).getDate();
   var endD = new Date(t.getFullYear(), t.getMonth() + f.months, Math.min(t.getDate(), last));
   var nd = {id:'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name:f.name,
@@ -1407,7 +1414,7 @@ function evalOffer(f, base){
 function renderOffers(sim){
   $('#offerList').innerHTML = state.offers.map(function(f){
     var e = evalOffer(f, sim);
-    var terms = rate(f.rate || 0) + ' for ' + plural(f.months, 'month') + ' · ' + rate(f.fee) + ' fee · then ' + rate(f.apr) + ' APR' + (f.limit ? ' · ' + moneyR(f.limit) + ' limit' : '');
+    var terms = rate(f.rate || 0) + ' for ' + plural(f.months, 'month') + ' · ' + offerFee(f) + ' fee · then ' + rate(f.apr) + ' APR' + (f.limit ? ' · ' + moneyR(f.limit) + ' limit' : '');
     var btns = '<div class="actions"><button type="button" class="btn small primary" data-apply="' + esc(f.id) + '">I\'ve taken this deal</button>' +
       '<button type="button" class="btn small" data-editoffer="' + esc(f.id) + '">Edit</button></div>';
     var chip = '', body = '';
@@ -1436,7 +1443,7 @@ function renderOffers(sim){
           (f.limit ? '' : '. Add the card\'s credit limit to count it') + '.</p>';
       }
       body = '<p class="facts">' + terms + '</p>' + big +
-        '<p class="facts">Moves ' + money(r.moved) + ' from ' + from + '. Fee <strong>' + money(r.fee) + '</strong>.' + (r.capped ? ' The credit limit stops it taking everything you picked.' : '') + '</p>' +
+        '<p class="facts">Moves ' + money(r.moved) + ' from ' + from + '. Fee <strong>' + money(r.fee) + '</strong> (' + (Math.round(r.fee / r.moved * 1000) / 10) + '% of what moves).' + (r.capped ? ' The credit limit stops it taking everything you picked.' : '') + '</p>' +
         use + '<p class="verdict">' + when + dl + '</p>';
     }
     return '<div class="panel deal"><div class="deal-top"><div class="nm">' + esc(f.name) + (state.example ? '<span class="chip">Example</span>' : '') + '</div>' + chip + '</div>' + body + btns + '</div>';
@@ -1449,10 +1456,12 @@ function openOffer(id, pre){
   editingOffer = id || null;
   var f = id ? state.offers.find(function(o){ return o.id === id; }) : null;
   $('#offerTitle').textContent = f ? 'Edit ' + f.name : 'Try a 0% or low-rate deal';
+  resetRateUnits('#offerForm');
   $('#oRate').value = f && f.rate ? f.rate : '';
   $('#oName').value = f ? f.name : '';
   $('#oMonths').value = f ? f.months : (pre && pre.months ? pre.months : '');
   $('#oFee').value = f ? f.fee : '';
+  $('#oFeeType').value = f && f.feeType === 'amt' ? 'amt' : 'pct';
   $('#oApr').value = f ? f.apr : '';
   $('#oLimit').value = f && f.limit !== null ? f.limit : '';
   $('#oMin').value = f && f.minPay !== null ? f.minPay : '';
@@ -1476,19 +1485,20 @@ function closeOffer(){ $('#offerForm').hidden = true; editingOffer = null; }
 function saveOffer(e){
   e.preventDefault();
   var err = [];
-  var rt = $('#oRate').value;
-  var name = $('#oName').value.trim(), months = $('#oMonths').value, fee = $('#oFee').value, apr = $('#oApr').value, lim = $('#oLimit').value, mn = $('#oMin').value;
+  var rt = rateIn($('#oRate'));
+  var name = $('#oName').value.trim(), months = $('#oMonths').value, fee = $('#oFee').value, feeType = $('#oFeeType').value === 'amt' ? 'amt' : 'pct', apr = rateIn($('#oApr')), lim = $('#oLimit').value, mn = $('#oMin').value;
   var ids = Array.prototype.map.call(document.querySelectorAll('#oPicks input:checked'), function(i){ return i.value; });
   if (!name) err.push('Give the deal a name.');
   if (rt !== '' && (num(rt, -1) < 0 || num(rt) > 100)) err.push('The deal rate must be between 0 and 100.');
   if (months === '' || num(months) < 1 || num(months) > 60) err.push('Put in how many months the deal lasts (1 to 60).');
-  if (fee === '' || num(fee, -1) < 0 || num(fee) > 20) err.push('Put in the transfer fee (0 if there isn\'t one).');
+  if (fee === '' || num(fee, -1) < 0) err.push('Put in the transfer fee (0 if there isn\'t one).');
+  else if (feeType === 'pct' && num(fee) > 20) err.push('A fee as a % can\'t be over 20. Pick £ if it\'s a set amount.');
   if (apr === '' || num(apr, -1) < 0 || num(apr) > 100) err.push('Put in the rate after the deal ends.');
   if (lim !== '' && num(lim, -1) < 0) err.push('The credit limit can\'t be negative.');
   if (mn !== '' && num(mn, -1) < 0) err.push('The minimum payment can\'t be negative.');
   if (!ids.length) err.push('Pick at least one debt to move.');
   if (err.length){ var el = $('#offerErr'); el.textContent = err.join(' '); el.hidden = false; return; }
-  var data = {name:name, rate: rt === '' ? 0 : num(rt), months:Math.round(num(months)), fee:num(fee), apr:num(apr), limit: lim === '' ? null : num(lim), minPay: mn === '' ? null : num(mn), debtIds:ids};
+  var data = {name:name, rate: rt === '' ? 0 : num(rt), months:Math.round(num(months)), fee:num(fee), feeType:feeType, apr:num(apr), limit: lim === '' ? null : num(lim), minPay: mn === '' ? null : num(mn), debtIds:ids};
   if (editingOffer){ Object.assign(state.offers.find(function(o){ return o.id === editingOffer; }), data); }
   else { data.id = 'o' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); state.offers.push(data); }
   closeOffer(); persist(); render();
@@ -1710,6 +1720,7 @@ function openForm(id){
   $('#fName').value = d ? d.name : '';
   $('#fBalance').value = d ? d.balance : '';
   $('#fMin').value = d ? d.minPay : '';
+  resetRateUnits('#debtForm');
   $('#fApr').value = d ? d.apr : '';
   $('#fDeal').checked = !!(d && d.promoEnd);
   $('#fEnd').value = d && d.promoEnd ? d.promoEnd : '';
@@ -1719,7 +1730,7 @@ function openForm(id){
   var split = !!(d && isSplit(d));
   $('#fSplit').checked = split;
   drawPartRows(split ? d.parts.map(function(p){
-    return {id:p.id, label:p.label, balance:p.balance, type:p.plan ? 'plan' : p.promoEnd ? 'deal' : 'rate', apr:p.apr, end:p.promoEnd, revert:p.promoEnd ? p.revertApr : '', planPay:p.plan ? p.planPay : '', fee:p.plan && p.fee ? p.fee : ''};
+    return {id:p.id, label:p.label, balance:p.balance, type:p.plan ? 'plan' : p.promoEnd ? 'deal' : 'rate', apr:p.apr, end:p.promoEnd, revert:p.promoEnd ? p.revertApr : '', planPay:p.plan ? p.planPay : '', fee:p.plan && p.fee ? p.fee : '', feeType:p.plan && p.feeType === 'pct' ? 'pct' : 'amt'};
   }) : []);
   showSplit(split);
   $('#formErr').hidden = true;
@@ -1733,12 +1744,41 @@ function closeForm(){ $('#debtForm').hidden = true; editingId = null; }
 
 /* the balance rows of a split card */
 function newPartId(){ return 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
-function blankPart(){ return {id:newPartId(), label:'', balance:'', type:'rate', apr:'', end:'', revert:'', planPay:'', fee:''}; }
+function blankPart(){ return {id:newPartId(), label:'', balance:'', type:'rate', apr:'', end:'', revert:'', planPay:'', fee:'', feeType:'amt'}; }
 function partField(i, cls, label, attrs, value, hint, only){
   var id = 'part' + i + '_' + cls;
   return '<div class="field"' + (only ? ' data-only="' + only + '"' : '') + '><label for="' + id + '">' + label + '</label>' +
     '<input id="' + id + '" class="' + cls + '" ' + attrs + ' value="' + esc(value === undefined || value === null ? '' : value) + '">' +
     (hint ? '<span class="fh">' + hint + '</span>' : '') + '</div>';
+}
+// a rate box with a choice of yearly (APR) or monthly; the app always stores the yearly figure
+var RATE_UNIT = '<select class="rateUnit" aria-label="Rate for a year or for a month"><option value="year">a year (APR)</option><option value="month">a month</option></select>';
+function rateField(i, cls, label, value, hint, only){
+  var id = 'part' + i + '_' + cls;
+  return '<div class="field"' + (only ? ' data-only="' + only + '"' : '') + '><label for="' + id + '">' + label + '</label><div class="pair">' +
+    '<input id="' + id + '" class="' + cls + '" type="number" inputmode="decimal" min="0" max="100" step="0.01" value="' + esc(value === undefined || value === null ? '' : value) + '">' + RATE_UNIT + '</div>' +
+    '<span class="fh eq" hidden></span>' + (hint ? '<span class="fh">' + hint + '</span>' : '') + '</div>';
+}
+function monthToApr(m){ return Math.round((Math.pow(1 + m / 100, 12) - 1) * 10000) / 100; }
+// what a rate box holds, as a yearly rate
+function rateIn(el){
+  var v = el.value, u = el.parentNode.querySelector('.rateUnit');
+  if (v === '' || !u || u.value !== 'month' || !(num(v, -1) >= 0)) return v;
+  return String(monthToApr(num(v)));
+}
+function showRateEq(e){
+  var pair = e.target && e.target.closest ? e.target.closest('.pair') : null, u = pair && pair.querySelector('.rateUnit');
+  if (!u) return;
+  var box = pair.querySelector('input'), eq = pair.parentNode.querySelector('.eq');
+  var on = u.value === 'month' && num(box.value, -1) > 0;
+  eq.hidden = !on;
+  if (on) eq.textContent = rate(num(box.value)) + ' a month is ' + rate(monthToApr(num(box.value))) + ' a year. The app works in yearly rates.';
+}
+document.addEventListener('input', showRateEq);
+document.addEventListener('change', showRateEq);
+function resetRateUnits(sel){
+  Array.prototype.forEach.call(document.querySelectorAll(sel + ' .rateUnit'), function(u){ u.value = 'year'; });
+  Array.prototype.forEach.call(document.querySelectorAll(sel + ' .eq'), function(q){ q.hidden = true; });
 }
 function drawPartRows(rows){
   var numAttrs = 'type="number" inputmode="decimal" min="0" step="0.01"', aprAttrs = numAttrs + ' max="100"';
@@ -1749,20 +1789,23 @@ function drawPartRows(rows){
       partField(i, 'pBal', 'Balance owed (£)', numAttrs, r.balance) +
       '<div class="field"><label for="part' + i + '_pType">Type</label><select id="part' + i + '_pType" class="pType">' +
         types.map(function(t){ return '<option value="' + t[0] + '"' + (r.type === t[0] ? ' selected' : '') + '>' + t[1] + '</option>'; }).join('') + '</select></div>' +
-      partField(i, 'pApr', 'Interest rate now (APR %)', aprAttrs, r.apr, 'Use 0 if it\'s at 0%') +
+      rateField(i, 'pApr', 'Interest rate now (%)', r.apr, 'Use 0 if it\'s at 0%') +
       partField(i, 'pEnd', 'Deal ends on', 'type="date"', r.end, '', 'deal') +
-      partField(i, 'pRevert', 'Interest rate after it ends (APR %)', aprAttrs, r.revert, '', 'deal') +
+      rateField(i, 'pRevert', 'Interest rate after it ends (%)', r.revert, '', 'deal') +
       partField(i, 'pPlanPay', 'Monthly instalment (£)', numAttrs, r.planPay, 'Paid first each month. The card\'s minimum payment should include it.', 'plan') +
       partField(i, 'pMonths', 'Payments left', 'type="number" inputmode="numeric" min="1" max="120" step="1"', planMonths(num(r.balance), num(r.apr), num(r.planPay)) || '', 'Fill in this or the monthly instalment and the other is worked out.', 'plan') +
-      partField(i, 'pFee', 'One-off plan fee (£)', numAttrs, r.fee, 'Optional, for your records. Use it when the fee was added to the plan at the start, so the balance owed already includes it.', 'plan') +
+      '<div class="field" data-only="plan"><label for="part' + i + '_pFee">One-off plan fee</label><div class="pair">' +
+        '<input id="part' + i + '_pFee" class="pFee" ' + numAttrs + ' value="' + esc(r.fee === undefined || r.fee === null ? '' : r.fee) + '">' +
+        '<select class="pFeeType" aria-label="Fee in pounds or as a percentage"><option value="amt">£</option><option value="pct"' + (r.feeType === 'pct' ? ' selected' : '') + '>%</option></select></div>' +
+        '<span class="fh">Optional, for your records. In pounds, or as a % of the amount you put on the plan. Use it when the fee was added at the start, so the balance owed already includes it.</span></div>' +
       '<div class="full" data-remove><button type="button" class="btn small danger" data-rmpart>Remove this balance</button></div></div>';
   }).join('');
   syncPartRows();
 }
 function readPartRows(){
   return Array.prototype.map.call(document.querySelectorAll('#partRows .part'), function(el){
-    function v(cls){ return el.querySelector('.' + cls).value; }
-    return {id:el.dataset.pid, label:v('pLabel').trim(), balance:v('pBal'), type:v('pType'), apr:v('pApr'), end:v('pEnd'), revert:v('pRevert'), planPay:v('pPlanPay'), fee:v('pFee')};
+    function v(cls){ var box = el.querySelector('.' + cls); return cls === 'pApr' || cls === 'pRevert' ? rateIn(box) : box.value; }
+    return {id:el.dataset.pid, label:v('pLabel').trim(), balance:v('pBal'), type:v('pType'), apr:v('pApr'), end:v('pEnd'), revert:v('pRevert'), planPay:v('pPlanPay'), fee:v('pFee'), feeType:v('pFeeType') === 'pct' ? 'pct' : 'amt'};
   });
 }
 function syncPartRows(e){
@@ -1770,10 +1813,10 @@ function syncPartRows(e){
   // a plan's instalment and payments left follow each other: whichever was typed last sets the other
   var changed = e && e.target && e.target.closest ? e.target.closest('.part') : null;
   if (changed && changed.querySelector('.pType').value === 'plan'){
-    var bal = num(changed.querySelector('.pBal').value), apr = num(changed.querySelector('.pApr').value);
+    var bal = num(changed.querySelector('.pBal').value), apr = num(rateIn(changed.querySelector('.pApr')));
     var payEl = changed.querySelector('.pPlanPay'), monthsEl = changed.querySelector('.pMonths');
     if (e.target === monthsEl){ var pay = planPayment(bal, apr, Math.round(num(monthsEl.value))); payEl.value = pay ? pay : ''; }
-    else if (e.target !== changed.querySelector('.pLabel') && e.target !== changed.querySelector('.pFee')){
+    else if (e.target !== changed.querySelector('.pLabel') && e.target !== changed.querySelector('.pFee') && e.target !== changed.querySelector('.pFeeType')){
       if (payEl.value === '' && monthsEl.value !== ''){ var need = planPayment(bal, apr, Math.round(num(monthsEl.value))); payEl.value = need ? need : ''; }
       else monthsEl.value = planMonths(bal, apr, num(payEl.value)) || '';
     }
@@ -1791,8 +1834,8 @@ function showSplit(on){
   if (on && !document.querySelector('#partRows .part')){
     // start from what's already typed in as the first balance
     var first = blankPart(), deal = $('#fDeal').checked;
-    first.balance = $('#fBalance').value; first.apr = $('#fApr').value;
-    if (deal){ first.type = 'deal'; first.end = $('#fEnd').value; first.revert = $('#fRevert').value; }
+    first.balance = $('#fBalance').value; first.apr = rateIn($('#fApr'));
+    if (deal){ first.type = 'deal'; first.end = $('#fEnd').value; first.revert = rateIn($('#fRevert')); }
     drawPartRows([first, blankPart()]);
   }
   Array.prototype.forEach.call(document.querySelectorAll('#debtForm [data-single]'), function(f){ f.hidden = on; });
@@ -1804,8 +1847,8 @@ function saveForm(e){
   e.preventDefault();
   var err = [];
   var name = $('#fName').value.trim();
-  var bal = $('#fBalance').value, mn = $('#fMin').value, apr = $('#fApr').value;
-  var deal = $('#fDeal').checked, end = $('#fEnd').value, rev = $('#fRevert').value, lim = $('#fLimit').value;
+  var bal = $('#fBalance').value, mn = $('#fMin').value, apr = rateIn($('#fApr'));
+  var deal = $('#fDeal').checked, end = $('#fEnd').value, rev = rateIn($('#fRevert')), lim = $('#fLimit').value;
   if (lim !== '' && num(lim, -1) < 0) err.push('The credit limit can\'t be negative.');
   if (!name) err.push('Give it a name.');
   if (mn !== '' && num(mn, -1) < 0) err.push('The minimum payment can\'t be negative.');
@@ -1824,12 +1867,14 @@ function saveForm(e){
       if (r.type === 'plan'){
         if (!(num(r.planPay) > 0)) err.push(nm + ': put in the monthly instalment or the payments left.');
         if (r.fee !== '' && num(r.fee, -1) < 0) err.push(nm + ': the fee can\'t be negative.');
+        else if (r.feeType === 'pct' && num(r.fee) > 100) err.push(nm + ': a fee as a % can\'t be over 100.');
         else if (num(r.balance) > 0) planDue += Math.min(num(r.planPay), num(r.balance));
       }
       parts.push({id:r.id, label:nm, balance:Math.round(num(r.balance) * 100) / 100, apr:num(r.apr),
         promoEnd: r.type === 'deal' ? r.end : '', revertApr: r.type === 'deal' ? num(r.revert) : 0,
         plan: r.type === 'plan', planPay: r.type === 'plan' ? Math.round(num(r.planPay) * 100) / 100 : 0,
-        fee: r.type === 'plan' ? Math.max(0, Math.round(num(r.fee) * 100) / 100) : 0});
+        fee: r.type === 'plan' ? Math.max(0, Math.round(num(r.fee) * 100) / 100) : 0,
+        feeType: r.type === 'plan' && r.feeType === 'pct' && num(r.fee) > 0 ? 'pct' : 'amt'});
     });
     if (planDue > num(mn) + 0.004) err.push('The minimum payment should include the instalments (' + money(planDue) + ' a month).');
   } else {
@@ -1971,7 +2016,7 @@ function aiPrompt(sim, hide){
   state.offers.forEach(function(f, i){
     var e = evalOffer(f, sim);
     if (e.none) return;
-    L.push('- Offer I\'m looking at, ' + (hide ? 'Offer ' + (i + 1) : f.name) + ': ' + rate(f.rate || 0) + ' for ' + plural(f.months, 'month') + ', ' + rate(f.fee) + ' fee, then ' + rate(f.apr) + ' APR' + (f.limit ? ', ' + moneyR(f.limit) + ' limit' : '') +
+    L.push('- Offer I\'m looking at, ' + (hide ? 'Offer ' + (i + 1) : f.name) + ': ' + rate(f.rate || 0) + ' for ' + plural(f.months, 'month') + ', ' + offerFee(f) + ' fee, then ' + rate(f.apr) + ' APR' + (f.limit ? ', ' + moneyR(f.limit) + ' limit' : '') +
       '. Moving ' + money(e.r.moved) + ' to it ' + (e.save === null ? 'changes my debt-free date' : (e.save >= 0 ? 'saves about ' + moneyR(e.save) : 'costs about ' + moneyR(-e.save) + ' more') + ' after the fee'));
   });
   L.push('', 'How the planner works: interest is charged monthly from each APR, minimum payments stay fixed, 0% deals get an even share of what\'s left on them each month so they clear by their end date, and the rest goes on one target debt at a time. On a card with separate balances, a payment covers any instalment plan payment first and then the highest-rate balance.');
@@ -2122,7 +2167,7 @@ initCloud().then(endBoot, endBoot);
 </script>
 <script>if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
 <script>(function(){
-var BUILD='cb9c1428ef',shown=false;
+var BUILD='2b9fa98635',shown=false;
 function check(){
   if(shown||location.protocol==='file:')return;
   fetch('version.json?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.json();}).then(function(v){
