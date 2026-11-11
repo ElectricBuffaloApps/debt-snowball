@@ -284,7 +284,7 @@ footer p+p{margin-top:6px}
 <body>
 <div class="wrap">
   <header class="topbar">
-    <div class="brand"><span class="balls" aria-hidden="true"><i></i><i></i><i></i></span>Debt Snowball<span class="ver" title="Version 4.1, 11/11/2026">v4.1</span></div>
+    <div class="brand"><span class="balls" aria-hidden="true"><i></i><i></i><i></i></span>Debt Snowball<span class="ver" title="Version 4.2, 11/11/2026">v4.2</span></div>
     <span class="savepill" id="savePill" data-s="example">Examples, not saved</span>
   </header>
 
@@ -2121,5 +2121,22 @@ initCloud().then(endBoot, endBoot);
 })();
 </script>
 <script>if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+<script>(function(){
+var BUILD='cb9c1428ef',shown=false;
+function check(){
+  if(shown||location.protocol==='file:')return;
+  fetch('version.json?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.json();}).then(function(v){
+    if(shown||!v||!v.build||v.build===BUILD)return;
+    shown=true;
+    var b=document.createElement('button');
+    b.type='button';b.className='btn primary';b.id='updateReady';b.textContent='New version ready. Tap to update';
+    b.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:9;box-shadow:var(--shadow)';
+    b.addEventListener('click',function(){location.replace('./?v='+encodeURIComponent(v.build));});
+    document.body.appendChild(b);
+  }).catch(function(){});
+}
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')check();});
+addEventListener('pageshow',check);
+})();</script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-var CACHE = 'debt-snowball-f28ad7234f';
+var CACHE = 'debt-snowball-cb9c1428ef';
 var FILES = ["./", "index.html", "manifest.webmanifest", "apple-touch-icon.png", "icon-192.png", "icon-512.png"];
 self.addEventListener('install', function(e){
   e.waitUntil(caches.open(CACHE).then(function(c){ return c.addAll(FILES); }));
@@ -11,7 +11,7 @@ self.addEventListener('activate', function(e){
 });
 self.addEventListener('fetch', function(e){
   if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
-  e.respondWith(fetch(e.request).then(function(res){
+  e.respondWith(fetch(e.request.url, {cache: 'no-store'}).then(function(res){
     var copy = res.clone();
     caches.open(CACHE).then(function(c){ c.put(e.request, copy); });
     return res;
