@@ -63,6 +63,7 @@ p{margin:0}
 /* top bar */
 .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .brand{display:flex;align-items:center;gap:10px;font-family:var(--f-display);font-weight:800;font-size:1.2rem;letter-spacing:-.01em}
+.topright{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .ver{font-family:var(--f-mono);font-size:.72rem;font-weight:500;color:var(--ink-3);letter-spacing:.02em}
 .balls{display:flex;align-items:flex-end;gap:3px}
 .balls i{display:block;border-radius:50%;background:var(--accent)}
@@ -285,8 +286,8 @@ footer p+p{margin-top:6px}
 <body>
 <div class="wrap">
   <header class="topbar">
-    <div class="brand"><span class="balls" aria-hidden="true"><i></i><i></i><i></i></span>Debt Snowball<span class="ver" title="Version 4.3, 11/11/2026">v4.3</span></div>
-    <span class="savepill" id="savePill" data-s="example">Examples, not saved</span>
+    <div class="brand"><span class="balls" aria-hidden="true"><i></i><i></i><i></i></span>Debt Snowball<span class="ver" title="Version 4.4, 11/11/2026">v4.4</span></div>
+    <div class="topright"><span class="savepill" id="savePill" data-s="example">Examples, not saved</span><button type="button" class="btn small primary" id="topAdd">Add a debt</button></div>
   </header>
 
   <div class="banner" id="exampleBanner" hidden>
@@ -326,7 +327,7 @@ footer p+p{margin-top:6px}
   </section>
 
   <section class="sec" id="levelSec" hidden>
-    <div class="sec-head"><div><h2>What you pay each month</h2><p class="sec-sub">What you're paying now, and the least you could pay and still clear everything. Minimum payments are always covered, and each one rolls into the next debt as a debt clears.</p></div></div>
+    <div class="sec-head"><div><h2>What you pay each month</h2><p class="sec-sub">What you're paying now, and the least you could pay and still clear everything. Put what you pay on each debt to compare carrying on as you are with paying one debt at a time. Minimum payments are always covered, and each one rolls into the next debt as a debt clears.</p></div></div>
     <ul class="rows panel" id="levelList"></ul>
   </section>
 
@@ -402,6 +403,7 @@ footer p+p{margin-top:6px}
         <div class="field full"><label class="check"><input id="fSplit" type="checkbox"> This card has more than one balance at different rates</label><span class="fh">For example purchases at the standard rate and a balance transfer at 0%, or an instalment plan.</span></div>
         <div class="field" data-single><label for="fBalance">Balance owed (£)</label><input id="fBalance" type="number" inputmode="decimal" min="0" step="0.01"></div>
         <div class="field"><label for="fMin">Minimum monthly payment (£)</label><input id="fMin" type="number" inputmode="decimal" min="0" step="0.01"><span class="fh">From your statement. Leave blank or put 0 if there isn't one, like a buy-now-pay-later plan.</span></div>
+        <div class="field"><label for="fPay">What you actually pay a month (£)</label><input id="fPay" type="number" inputmode="decimal" min="0" step="0.01"><span class="fh">Optional. Fill it in if you pay more than the minimum. The app adds these up into your monthly total.</span></div>
         <div class="field"><label for="fLimit">Credit limit (£)</label><input id="fLimit" type="number" inputmode="decimal" min="0" step="1"><span class="fh">For credit cards, store cards and overdrafts. Leave blank for loans.</span></div>
         <div class="field" data-single><label for="fApr">Interest rate now (%)</label><div class="pair"><input id="fApr" type="number" inputmode="decimal" min="0" max="100" step="0.01"><select class="rateUnit" aria-label="Rate for a year or for a month"><option value="year">a year (APR)</option><option value="month">a month</option></select></div><span class="fh eq" hidden></span><span class="fh">Use 0 if it's on a 0% deal</span></div>
         <div class="full dealbox partsbox" id="partsBox" hidden>
@@ -592,6 +594,7 @@ function normalise(o){
       startBalance: Math.max(bal, num(d.startBalance, bal)),
       apr: clamp(num(d.apr), 0, 100),
       minPay: Math.max(0, num(d.minPay)),
+      payNow: Math.max(0, num(d.payNow)),
       promoEnd: /^\d{4}-\d{2}-\d{2}$/.test(d.promoEnd || '') ? d.promoEnd : '',
       revertApr: clamp(num(d.revertApr), 0, 100),
       backdated: !!d.backdated,
@@ -755,14 +758,14 @@ function planPayment(balance, apr, months){
 function partName(d, p){ return isSplit(d) ? d.name + ': ' + p.label : d.name; }
 
 /* Month by month: pay every minimum, put everything left on the target debt, then charge a month's interest. */
-function simulate(debts, budget, strategy){
+function simulate(debts, budget, strategy, fixed){
   var start = startOfMonth(new Date());
   var ds = debts.filter(function(d){ return d.balance > 0.004; }).map(function(d){
     var parts = partsOf(d).filter(function(p){ return p.balance > 0.004; }).map(function(p){
       return {key:p.key, bal:p.balance, apr:p.apr, promoEnd:p.promoEnd, revertApr:p.revertApr, backdated:p.backdated, plan:p.plan, planPay:p.planPay,
         rate:0, due:0, paid:0, n:(p.promoEnd && !dealEnded(p)) ? paymentsLeft(p, start) : 0};
     });
-    return {id:d.id, bal:parts.reduce(function(t, p){ return t + p.bal; }, 0), minPay:d.minPay, rate:0, limit:d.limit || 0, parts:parts};
+    return {id:d.id, bal:parts.reduce(function(t, p){ return t + p.bal; }, 0), minPay:fixed ? (fixed[d.id] || 0) : d.minPay, rate:0, limit:d.limit || 0, parts:parts};
   }).filter(function(d){ return d.bal > 0.004; });
   var minTotal = ds.reduce(function(s, d){ return s + d.minPay; }, 0);
   var b = budget === null || budget === undefined ? minTotal : budget;
@@ -805,6 +808,8 @@ function simulate(debts, budget, strategy){
     var row = {pays:{}, setAside:{}, partAside:{}, partPay:{}, partAfter:{}, focus:null, interest:0, extra:0, paid:0, dlShort:0, afterPay:{}, bal:{}, total:0};
     var left = pay;
     lv.forEach(function(d){ var p = Math.min(d.minPay, d.bal); payInto(d, p); row.pays[d.id] = p; left -= p; });
+    // fixed payments (carrying on as now): each debt gets its own amount and nothing rolls on
+    if (fixed) left = 0;
     // 0% deadlines: on top of the minimum, an even share of what's left so each deal clears in the payments it has left
     var deals = [];
     lv.forEach(function(d){ d.parts.forEach(function(p){ if (p.bal > 0.004 && p.n - m > 0) deals.push({d:d, p:p}); }); });
@@ -928,7 +933,16 @@ function rateText(p){
   if (p.promoEnd) return dealEnded(p) ? rate(p.revertApr) + ' APR (deal ended ' + ukDate(p.promoEnd) + ')' : rate(p.apr) + ' until ' + ukDate(p.promoEnd) + ', then ' + rate(p.revertApr) + ' APR';
   return rate(p.apr) + ' APR';
 }
-function minText(d){ return d.minPay > 0.004 ? money(d.minPay) + ' minimum' : 'no monthly payment'; }
+function minText(d){ return (d.minPay > 0.004 ? money(d.minPay) + ' minimum' : 'no monthly payment') + (d.payNow > d.minPay + 0.004 ? ' · paying ' + money(d.payNow) : ''); }
+// what each debt gets today: the amount typed on the debt, never less than its minimum
+function payNowOf(d){ return Math.max(d.payNow || 0, d.minPay); }
+function hasPayNow(){ return live().some(function(d){ return d.payNow > 0.004; }); }
+function paySum(){ return Math.round(live().reduce(function(t, d){ return t + payNowOf(d); }, 0) * 100) / 100; }
+// carrying on as now: every debt keeps its own payment until it clears, then that money stops
+function asNowSim(){
+  var fx = {}; live().forEach(function(d){ fx[d.id] = payNowOf(d); });
+  return simulate(state.debts, null, state.strategy, fx);
+}
 
 /* ---------- rendering ---------- */
 var state, lastSim = null, chartState = null;
@@ -1199,7 +1213,28 @@ function renderLevels(sim){
     nowSub += ' That\'s ' + money(sim.pay - lv.clear.amount) + ' a month more than the least you could pay' +
       (dm > 0 ? ', which gets you there ' + plural(dm, 'month') + ' sooner' + (di >= 1 ? ' and saves ' + moneyR(di) + ' in interest' : '') : (di >= 1 ? ', which saves ' + moneyR(di) + ' in interest' : '')) + '.';
   }
-  rows.push({name:'You\'re paying now', sub:nowSub, amount:sim.pay, focus:true});
+  var own = hasPayNow(), asNow = own ? asNowSim() : null, sum = own ? paySum() : 0;
+  var orderName = STRAT[state.strategy].name.toLowerCase();
+  if (own){
+    rows.push({name:'Carrying on as you pay now', amount:sum,
+      sub:(asNow.finished ? planLine(asNow) + '.' : 'Some debts never clear this way.') + ' Each debt keeps getting what you pay it today, and that money stops when the debt clears.'});
+    if (Math.abs(sim.pay - sum) > 0.5) nowSub += ' Your payments debt by debt add up to ' + money(sum) + '. <button type="button" class="btn small" data-usesum>Use ' + money(sum) + '</button>';
+    else if (asNow.finished && sim.finished){
+      var gm = asNow.months.length - sim.months.length, gi = asNow.interest - sim.interest;
+      if (gm > 0 || gi >= 1) nowSub += ' Against carrying on as you are, that\'s ' + (gm > 0 ? plural(gm, 'month') + ' sooner' : 'the same month') + (gi >= 1 ? ' and ' + moneyR(gi) + ' less interest' : '') + '.';
+    }
+  }
+  rows.push({name: own ? 'The same money, one debt at a time' : 'You\'re paying now', sub:(own ? 'Minimums on everything, the rest on one debt, in the ' + orderName + ' order. ' : '') + nowSub, amount:sim.pay, focus:true});
+  if (own && asNow.finished){
+    var top2 = live().reduce(function(t, d){ return t + d.balance; }, 0) + sim.minTotal + 1;
+    var match = leastAmount(sim.minTotal, top2, function(x){ return x.finished && x.months.length <= asNow.months.length; });
+    if (match && match.amount < sum - 0.5){
+      var risk2 = activeDeals().filter(function(it){ return dealLeft(match.sim, it) >= 0.5; }).length;
+      rows.push({name:'The least that still finishes by ' + mShort(lastMonth(asNow)), amount:match.amount,
+        sub:money(sum - match.amount) + ' a month less than you pay now, by paying one debt at a time in the ' + orderName + ' order. ' + planLine(match.sim) + '.' +
+          (risk2 ? ' At this amount ' + plural(risk2, '0% deal') + ' would run out with money still owed.' : '')});
+    }
+  }
   if (lv.clear){
     var onlyMins = lv.clear.amount <= sim.minTotal + 0.004;
     var atRisk = activeDeals().filter(function(it){ return dealLeft(lv.clear.sim, it) >= 0.5; }).length;
@@ -1720,6 +1755,7 @@ function openForm(id){
   $('#fName').value = d ? d.name : '';
   $('#fBalance').value = d ? d.balance : '';
   $('#fMin').value = d ? d.minPay : '';
+  $('#fPay').value = d && d.payNow ? d.payNow : '';
   resetRateUnits('#debtForm');
   $('#fApr').value = d ? d.apr : '';
   $('#fDeal').checked = !!(d && d.promoEnd);
@@ -1886,7 +1922,7 @@ function saveForm(e){
     }
   }
   if (err.length){ var el = $('#formErr'); el.textContent = err.join(' '); el.hidden = false; return; }
-  var data = {name:name, minPay: mn === '' ? 0 : Math.round(num(mn)*100)/100, limit: lim === '' ? 0 : Math.round(num(lim) * 100) / 100};
+  var data = {name:name, minPay: mn === '' ? 0 : Math.round(num(mn)*100)/100, payNow: Math.max(0, Math.round(num($('#fPay').value) * 100) / 100), limit: lim === '' ? 0 : Math.round(num(lim) * 100) / 100};
   if (split) Object.assign(data, {balance:partsTotal(parts), apr:0, promoEnd:'', revertApr:0, backdated:false, parts:parts});
   else Object.assign(data, {balance:Math.round(num(bal)*100)/100, apr:num(apr), promoEnd: deal ? end : '', revertApr: deal ? num(rev) : 0, backdated: deal && $('#fBack').checked});
   if (editingId){
@@ -1900,6 +1936,8 @@ function saveForm(e){
     data.slot = nextSlot();
     state.debts.push(data);
   }
+  // payments typed debt by debt add up to the monthly total
+  if (hasPayNow()) state.budget = paySum();
   closeForm();
   persist();
   render();
@@ -2074,6 +2112,11 @@ $('#compareBox').addEventListener('click', function(e){
 });
 $('#clearExamples').addEventListener('click', function(){ clearExamples(); openForm(null); });
 $('#openAdd').addEventListener('click', function(){ if (state.example) clearExamples(); openForm(null); });
+$('#levelList').addEventListener('click', function(e){
+  if (!e.target.closest('[data-usesum]')) return;
+  state.budget = paySum(); persist(); render();
+});
+$('#topAdd').addEventListener('click', function(){ $('#openAdd').click(); });
 $('#openUpdate').addEventListener('click', openUpdate);
 $('#updCancel').addEventListener('click', closeUpdate);
 $('#updForm').addEventListener('submit', saveUpdate);
@@ -2167,7 +2210,7 @@ initCloud().then(endBoot, endBoot);
 </script>
 <script>if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
 <script>(function(){
-var BUILD='2b9fa98635',shown=false;
+var BUILD='604623b10c',shown=false;
 function check(){
   if(shown||location.protocol==='file:')return;
   fetch('version.json?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.json();}).then(function(v){
