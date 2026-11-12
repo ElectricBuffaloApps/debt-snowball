@@ -1,0 +1,6 @@
+archive/
+app/
+.DS_Store
+dev/*
+!dev/release.json
+!dev/release-*.md
