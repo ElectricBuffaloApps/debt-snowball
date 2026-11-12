@@ -1,120 +1,129 @@
 {
- "id": "debt-snowball",
- "how_to_run": "Run every command from Finance/debt-snowball/ with bash, in this order: test, build, expected_build (set EXPECTED), variables, preflight, deploy (only after Dave's yes in the chat), live_check, live_page_check, pages_check, after. The first release is different: see first_release. Run all commands of one release in the same shell so the variables stay set. '<name>' inside a command means the command string in the field of that name in this file, pasted in whole (each rule is written once). A command that exits non-zero stops the release. Never print a token. Dry run (no yes from Dave): run everything up to preflight, then deploy_dry_run (and first_release.dry_run_forms while that block exists), and stop.",
- "account": "ElectricBuffaloApps",
- "remote": "https://github.com/ElectricBuffaloApps/debt-snowball.git",
- "version_from": "sed -n 's/.*class=\"ver\"[^>]*>v\\([0-9.]*\\)<.*/\\1/p' debt-snowball.html | head -1",
- "release_tag_rule": "The release tag is v$VERSION (page v4.5 gives tag v4.5). EXCEPTION (R7): if the tag v$VERSION ALREADY EXISTS and the master is UNCHANGED since that tag, the release tag is v$VERSION-r2 (then -r3 and so on). 'Unchanged' is judged by build id: the build id in that tag's version.json (docs/version.json, or version.json at the root for v4.4 and v4.5, which predate the master being in git) equals the freshly built id in $EXPECTED. If the tag exists but the ids differ, STOP: the version was not bumped. release_tag is the only copy of this rule as a command; use its output as $TAG.",
- "release_tag": "if ! git rev-parse -q --verify \"refs/tags/v$VERSION\" >/dev/null; then echo \"v$VERSION\"; else OLD=$( (git show \"v$VERSION:docs/version.json\" 2>/dev/null || git show \"v$VERSION:version.json\") | python3 -c \"import sys,json;print(json.load(sys.stdin)['build'])\" ); if [ \"$OLD\" = \"$EXPECTED\" ]; then n=2; while git rev-parse -q --verify \"refs/tags/v$VERSION-r$n\" >/dev/null; do n=$((n+1)); done; echo \"v$VERSION-r$n\"; else echo \"STOP: tag v$VERSION exists but its build id ($OLD) differs from the new build ($EXPECTED): bump the version\" >&2; exit 1; fi; fi",
- "previous_tag": "git describe --tags --abbrev=0 --match 'v[0-9]*'",
- "previous_tag_use": "Run it in the variables step, BEFORE the release commit and tag, and record the result as $PREV in the release record. Do not run it again at rollback time (it would return the new tag).",
- "variables": [
-  "VERSION=$(<version_from>)",
-  "PREV=$(<previous_tag>)",
-  "TAG=$(<release_tag>)",
-  "NAMED='debt-snowball.html build_standalone.py tests docs README.md .gitignore .nojekyll dev/release.json'",
-  "ALLOWED='^(debt-snowball\\.html|build_standalone\\.py|tests/.*|docs/.*|README\\.md|\\.gitignore|\\.nojekyll|dev/release\\.json|dev/release-[0-9-]+\\.md)$'"
- ],
- "variables_use": "Set them after expected_build ($TAG needs $EXPECTED and $VERSION). $NAMED is used unquoted on purpose (no path in it has a space); $ALLOWED is the one list of paths a release may stage.",
- "preflight": [
-  "test \"$(git rev-parse --abbrev-ref HEAD)\" = main",
-  "test \"$(git remote get-url origin)\" = https://github.com/ElectricBuffaloApps/debt-snowball.git",
-  "git config --local --get-all credential.https://github.com.helper | grep -q 'gh auth token --user ElectricBuffaloApps'",
-  "test -n \"$TAG\" && ! git rev-parse -q --verify \"refs/tags/$TAG\" >/dev/null",
-  "! git diff --cached --name-only | grep -v -E \"$ALLOWED\""
- ],
- "test": "$HOME/.nvm/versions/node/v24.11.1/bin/node --test tests/*.test.mjs",
- "build": "python3 build_standalone.py",
- "expected_build": "python3 -c \"import json;print(json.load(open('docs/version.json'))['build'])\"",
- "expected_build_use": "EXPECTED=$(<expected_build>) straight after the build. If the master is unchanged since $PREV, EXPECTED must equal the id in the previous release record.",
- "deploy_dry_run": [
-  "git add --dry-run -- $NAMED",
-  "GIT_TERMINAL_PROMPT=0 git push --dry-run origin main",
-  "GIT_TERMINAL_PROMPT=0 git push --dry-run origin \"$PREV\""
- ],
- "deploy": [
-  "git add -- $NAMED",
-  "bad=$(git diff --cached --name-only | grep -E ' [0-9]+(\\.[^/ ]*)?$'); if [ -n \"$bad\" ]; then echo \"STOP: iCloud conflict copies are staged: $bad. Unstage them (git restore --staged -- <path>), delete the copies, start again\"; false; fi",
-  "bad=$(git diff --cached --name-only | grep -v -E \"$ALLOWED\"); if [ -n \"$bad\" ]; then echo \"STOP: staged paths outside the named list: $bad\"; false; fi",
-  "git diff --cached --quiet || git commit -m \"Release $TAG (build $EXPECTED)\"",
-  "git tag -a \"$TAG\" -m \"Debt Snowball $TAG, build $EXPECTED\"",
-  "GIT_TERMINAL_PROMPT=0 git push origin main",
-  "GIT_TERMINAL_PROMPT=0 git push origin \"$TAG\""
- ],
- "deploy_notes": "Named paths only, never git add -A or commit -a, never --force. The two guards after the add stop the release on an iCloud conflict copy ('name 2.ext') or any path outside $ALLOWED. The commit runs only if something is staged (a re-release of an unchanged master may stage nothing; the tag then goes on the current commit).",
- "pages_check": [
-  "GH_TOKEN=$(/opt/homebrew/bin/gh auth token --user ElectricBuffaloApps) /opt/homebrew/bin/gh api repos/ElectricBuffaloApps/debt-snowball/pages",
-  "GH_TOKEN=$(/opt/homebrew/bin/gh auth token --user ElectricBuffaloApps) /opt/homebrew/bin/gh api repos/ElectricBuffaloApps/debt-snowball/pages/builds/latest"
- ],
- "pages_check_use": "GET only. After any push to main: source.path must be /docs and builds/latest must have status built for the pushed commit (pages_wait proves it).",
- "latest_build_at": "GH_TOKEN=$(/opt/homebrew/bin/gh auth token --user ElectricBuffaloApps) /opt/homebrew/bin/gh api repos/ElectricBuffaloApps/debt-snowball/pages/builds/latest --jq .created_at",
- "pages_wait": "start=$(date +%s); ok=; while :; do P=$(GH_TOKEN=$(/opt/homebrew/bin/gh auth token --user ElectricBuffaloApps) /opt/homebrew/bin/gh api repos/ElectricBuffaloApps/debt-snowball/pages 2>/dev/null); B=$(GH_TOKEN=$(/opt/homebrew/bin/gh auth token --user ElectricBuffaloApps) /opt/homebrew/bin/gh api repos/ElectricBuffaloApps/debt-snowball/pages/builds/latest 2>/dev/null); if P=\"$P\" B=\"$B\" WANT_PATH=\"$WANT_PATH\" WANT_COMMIT=\"$WANT_COMMIT\" AFTER=\"$AFTER\" python3 -c 'import os,json; p=json.loads(os.environ[\"P\"] or \"{}\"); b=json.loads(os.environ[\"B\"] or \"{}\"); path=(p.get(\"source\") or {}).get(\"path\"); st=b.get(\"status\"); c=b.get(\"commit\") or \"\"; at=b.get(\"created_at\") or \"\"; print(\"pages: source.path %s, latest build %s, commit %s, created %s (want %s, %s, after %s)\" % (path, st, c[:7], at, os.environ[\"WANT_PATH\"], os.environ[\"WANT_COMMIT\"][:7], os.environ[\"AFTER\"] or \"-\")); raise SystemExit(0 if path == os.environ[\"WANT_PATH\"] and st == \"built\" and c == os.environ[\"WANT_COMMIT\"] and at > os.environ[\"AFTER\"] else 1)'; then ok=1; break; fi; [ $(( $(date +%s) - start )) -ge 600 ] && break; sleep 20; done; if [ -n \"$ok\" ]; then echo \"PAGES OK\"; else echo \"PAGES NOT PROVEN after 600 s (last state above)\"; false; fi",
- "pages_wait_use": "GET only. Set these shell variables first: WANT_PATH (/ or /docs), WANT_COMMIT (full hash: git rev-parse) and AFTER (a created_at read with latest_build_at BEFORE the push or PUT being proved). Passes only when Pages serves WANT_PATH and builds/latest is status built, for WANT_COMMIT, created later than AFTER. AFTER is GitHub's own clock, so the Mac's clock cannot fool it; a build from before the push or PUT can never pass. Polls every 20 s and stops on 600 s elapsed.",
- "live_check": {
-  "url": "https://electricbuffaloapps.github.io/debt-snowball/version.json?cb=<unix time>",
-  "field": "build",
-  "expected": "$EXPECTED",
-  "timeout_seconds": 600,
-  "interval_seconds": 20,
-  "command": "start=$(date +%s); got=; while :; do got=$(curl -fsS -m 15 \"https://electricbuffaloapps.github.io/debt-snowball/version.json?cb=$(date +%s)\" | python3 -c \"import sys,json;print(json.load(sys.stdin)['build'])\" 2>/dev/null); [ \"$got\" = \"$EXPECTED\" ] && break; [ $(( $(date +%s) - start )) -ge 600 ] && break; sleep 20; done; if [ \"$got\" = \"$EXPECTED\" ]; then echo \"LIVE OK $got\"; else echo \"NOT LIVE after 600 s: last saw '$got', wanted $EXPECTED\"; false; fi"
- },
- "live_page_check": "if curl -fsS -m 15 \"https://electricbuffaloapps.github.io/debt-snowball/?cb=$(date +%s)\" | cmp -s - docs/index.html; then echo \"PAGE OK\"; else echo \"STOP: the live page did not load or differs from docs/index.html\"; false; fi",
- "rollback": {
-  "works_for": "tags from this release on. v4.4 and v4.5 hold the site at the repo root, not in docs/; the first step refuses them. For those, redeploy by hand with Dave.",
-  "steps": [
-   "if git cat-file -e \"$PREV:docs/index.html\" 2>/dev/null && git cat-file -e \"$PREV:docs/version.json\" 2>/dev/null; then echo \"$PREV has docs/\"; else echo \"STOP: $PREV has no docs/ site (it predates the docs/ layout). Do not roll back this way; tell Dave\"; false; fi",
-   "git rm -r -q docs",
-   "git checkout \"$PREV\" -- docs",
-   "git commit -m \"Roll back to $PREV\"",
-   "GIT_TERMINAL_PROMPT=0 git push origin main"
-  ],
-  "then": "EXPECTED=$(git show \"$PREV:docs/version.json\" | python3 -c \"import sys,json;print(json.load(sys.stdin)['build'])\"), then live_check and pages_check. Say in the report that a rollback happened and why.",
-  "not_for": "A failed first release: use first_release.failure_route instead.",
-  "needs_yes": true
- },
- "first_release": {
-  "first_commit": "6364507075151138a57e07a1c2255e8387fca528",
-  "run_once": true,
-  "remove_from_recipe_after": "the first release has gone live and pages_check shows source.path /docs; delete this whole block then.",
-  "why": "R6. GitHub still serves main / from the old root files. Three local commits sit between the first commit and the one that removes the root copies (first_commit: docs/ plus source plus the old root site; then tests; then this recipe; then the root removal). Push only the first commit, switch Pages to /docs, and prove a build made from /docs after the switch. Whether GitHub starts a build when the source changes with no new commit is not documented, so if no new build appears, push the commit before the root removal ($KEEP), which still has both copies and does start a build. Only once /docs is proven is the root removal pushed. At every point the source GitHub serves holds a page: / has the root copies until /docs is proven, and /docs exists from the first push.",
-  "order": "Run test, build, expected_build, variables and preflight, then the first three deploy commands (add and both guards), the commit and the tag (all local). Then run these variables and steps INSTEAD of the two deploy pushes.",
+  "id": "debt-snowball",
+  "how_to_run": "Run every command from Finance/debt-snowball/ with bash, in this order: test, build, expected_build (set EXPECTED), variables, preflight, deploy (only after Dave's yes in the chat), live_check, live_page_check, pages_check, after. The first release is different: see first_release. Run all commands of one release in the same shell so the variables stay set. '<name>' inside a command means the command string in the field of that name in this file, pasted in whole (each rule is written once). A command that exits non-zero stops the release. Never print a token. Dry run (no yes from Dave): run everything up to preflight, then deploy_dry_run (and first_release.dry_run_forms while that block exists), and stop.",
+  "account": "ElectricBuffaloApps",
+  "remote": "https://github.com/ElectricBuffaloApps/debt-snowball.git",
+  "version_from": "sed -n 's/.*class=\"ver\"[^>]*>v\\([0-9.]*\\)<.*/\\1/p' debt-snowball.html | head -1",
+  "release_tag_rule": "The release tag is v$VERSION (page v4.5 gives tag v4.5). EXCEPTION (R7): if the tag v$VERSION ALREADY EXISTS and the master is UNCHANGED since that tag, the release tag is v$VERSION-r2 (then -r3 and so on). 'Unchanged' is judged by build id: the build id in that tag's version.json (docs/version.json, or version.json at the root for v4.4 and v4.5, which predate the master being in git) equals the freshly built id in $EXPECTED. If the tag exists but the ids differ, STOP: the version was not bumped. release_tag is the only copy of this rule as a command; use its output as $TAG.",
+  "release_tag": "if ! git rev-parse -q --verify \"refs/tags/v$VERSION\" >/dev/null; then echo \"v$VERSION\"; else OLD=$( (git show \"v$VERSION:docs/version.json\" 2>/dev/null || git show \"v$VERSION:version.json\") | python3 -c \"import sys,json;print(json.load(sys.stdin)['build'])\" ); if [ \"$OLD\" = \"$EXPECTED\" ]; then n=2; while git rev-parse -q --verify \"refs/tags/v$VERSION-r$n\" >/dev/null; do n=$((n+1)); done; echo \"v$VERSION-r$n\"; else echo \"STOP: tag v$VERSION exists but its build id ($OLD) differs from the new build ($EXPECTED): bump the version\" >&2; exit 1; fi; fi",
+  "previous_tag": "git describe --tags --abbrev=0 --match 'v[0-9]*'",
+  "previous_tag_use": "Run it in the variables step, BEFORE the release commit and tag, and record the result as $PREV in the release record. Do not run it again at rollback time (it would return the new tag).",
   "variables": [
-   "FIRST=6364507075151138a57e07a1c2255e8387fca528",
-   "ROOT_GONE=$(git log -1 --format=%H --diff-filter=D main -- index.html)",
-   "KEEP=$(git rev-parse \"$ROOT_GONE^\")",
-   "git merge-base --is-ancestor origin/main \"$FIRST\" && git merge-base --is-ancestor \"$FIRST\" \"$KEEP\" && git cat-file -e \"$FIRST:index.html\" && git cat-file -e \"$FIRST:docs/index.html\" && git cat-file -e \"$KEEP:index.html\" && git cat-file -e \"$KEEP:docs/index.html\" && ! git cat-file -e \"$ROOT_GONE:index.html\" 2>/dev/null && echo \"first-release commits OK\""
+    "VERSION=$(<version_from>)",
+    "PREV=$(<previous_tag>)",
+    "TAG=$(<release_tag>)",
+    "NAMED='debt-snowball.html build_standalone.py tests docs README.md .gitignore .nojekyll dev/release.json'",
+    "ALLOWED='^(debt-snowball\\.html|build_standalone\\.py|tests/.*|docs/.*|README\\.md|\\.gitignore|\\.nojekyll|dev/release\\.json|dev/release-[0-9-]+\\.md)$'"
   ],
-  "steps": [
-   "1. AFTER=$(<latest_build_at>)",
-   "2. GIT_TERMINAL_PROMPT=0 git push origin \"$FIRST:main\"",
-   "3. WANT_PATH=/; WANT_COMMIT=$FIRST; <pages_wait> (GitHub rebuilds / from the first commit; the live site is still the root copy)",
-   "4. AFTER=$(<latest_build_at>); SWITCHED=1",
-   "5. GH_TOKEN=$(/opt/homebrew/bin/gh auth token --user ElectricBuffaloApps) /opt/homebrew/bin/gh api -X PUT repos/ElectricBuffaloApps/debt-snowball/pages -f 'source[branch]=main' -f 'source[path]=/docs'",
-   "6. WANT_PATH=/docs; WANT_COMMIT=$FIRST; <pages_wait>. Passes: go to 8. Times out with source.path /docs and a build created no later than $AFTER (GitHub started no build for the switch): go to 7. Anything else (source.path not /docs, status errored): failure_route.",
-   "7. GIT_TERMINAL_PROMPT=0 git push origin \"$KEEP:main\", then WANT_PATH=/docs; WANT_COMMIT=$KEEP; <pages_wait> (AFTER unchanged). Fails: failure_route.",
-   "8. <live_check> and <live_page_check> (EXPECTED from this build: the site now comes from /docs).",
-   "9. AFTER=$(<latest_build_at>); ROOT_REMOVED=1; GIT_TERMINAL_PROMPT=0 git push origin main",
-   "10. WANT_PATH=/docs; WANT_COMMIT=$(git rev-parse main); <pages_wait>, then <live_check> and <live_page_check>",
-   "11. GIT_TERMINAL_PROMPT=0 git push origin \"$TAG\" v4.4 v4.5",
-   "12. Both pages_check commands once more; put source.path and the build's commit in the release record."
+  "variables_use": "Set them after expected_build ($TAG needs $EXPECTED and $VERSION). $NAMED is used unquoted on purpose (no path in it has a space); $ALLOWED is the one list of paths a release may stage.",
+  "preflight": [
+    "test \"$(git rev-parse --abbrev-ref HEAD)\" = main",
+    "test \"$(git remote get-url origin)\" = https://github.com/ElectricBuffaloApps/debt-snowball.git",
+    "git config --local --get-all credential.https://github.com.helper | grep -q 'gh auth token --user ElectricBuffaloApps'",
+    "test -n \"$TAG\" && ! git rev-parse -q --verify \"refs/tags/$TAG\" >/dev/null",
+    "! git diff --cached --name-only | grep -v -E \"$ALLOWED\""
   ],
-  "failure_route": "Do NOT run the rollback steps (there is no earlier tag with docs/). If SWITCHED is set and ROOT_REMOVED is not (the root copies are still on GitHub's main), put the source back to / with put_source_root, then run pages_check to show source.path /. If ROOT_REMOVED is set, do NOT put the source back (main has no page at the root any more); leave Pages on /docs. Either way: stop, push nothing more, and tell Dave in the chat what failed, the last pages_wait line, and where GitHub's main is (git ls-remote origin main).",
-  "put_source_root": "GH_TOKEN=$(/opt/homebrew/bin/gh auth token --user ElectricBuffaloApps) /opt/homebrew/bin/gh api -X PUT repos/ElectricBuffaloApps/debt-snowball/pages -f 'source[branch]=main' -f 'source[path]=/'",
-  "dry_run_forms": [
-   "GIT_TERMINAL_PROMPT=0 git push --dry-run origin \"$FIRST:main\"",
-   "GIT_TERMINAL_PROMPT=0 git push --dry-run origin \"$KEEP:main\"",
-   "GIT_TERMINAL_PROMPT=0 git push --dry-run origin main",
-   "GIT_TERMINAL_PROMPT=0 git push --dry-run origin v4.4 v4.5",
-   "AFTER=; WANT_PATH=/; WANT_COMMIT=$(git rev-parse origin/main); <pages_wait> (GET only; passes on today's live build from /)"
+  "test": "$HOME/.nvm/versions/node/v24.11.1/bin/node --test tests/*.test.mjs",
+  "build": "python3 build_standalone.py",
+  "expected_build": "python3 -c \"import json;print(json.load(open('docs/version.json'))['build'])\"",
+  "expected_build_use": "EXPECTED=$(<expected_build>) straight after the build. If the master is unchanged since $PREV, EXPECTED must equal the id in the previous release record.",
+  "deploy_dry_run": [
+    "git add --dry-run -- $NAMED",
+    "GIT_TERMINAL_PROMPT=0 git push --dry-run origin main",
+    "GIT_TERMINAL_PROMPT=0 git push --dry-run origin \"$PREV\""
   ],
-  "never_dry_run": "the Pages PUTs (step 5 and put_source_root)",
-  "needs_yes": true
- },
- "needs_yes": true,
- "after": {
-  "artifact_republish": "Only if the master changed since the last release tag, i.e. $TAG has no -rN suffix (an -rN tag means the build id was unchanged). If changed, tell Dave to republish his claude.ai artifact from debt-snowball.html in his browser (its URL is in dev/private-notes.md, which is not tracked). If unchanged, say 'artifact unchanged'.",
-  "portfolio": "(cd ../.. && python3 Dev/portfolio.py set debt-snowball live_version=$VERSION last_release=$(date +%F))",
-  "portfolio_use": "The subshell runs it from the PA folder (two levels up) and leaves the shell in Finance/debt-snowball/. Also set repo, recipe and tests while those fields are empty.",
-  "release_record": "dev/release-<yyyy-mm-dd>.md: version, build id, commit, $TAG, $PREV, what changed, test counts, live check result, pages_check result, rollback command. Then `git add -- dev/release-<yyyy-mm-dd>.md`, commit, and push with the same yes."
- }
+  "deploy": [
+    "git add -- $NAMED",
+    "bad=$(git diff --cached --name-only | grep -E ' [0-9]+(\\.[^/ ]*)?$'); if [ -n \"$bad\" ]; then echo \"STOP: iCloud conflict copies are staged: $bad. Unstage them (git restore --staged -- <path>), delete the copies, start again\"; false; fi",
+    "bad=$(git diff --cached --name-only | grep -v -E \"$ALLOWED\"); if [ -n \"$bad\" ]; then echo \"STOP: staged paths outside the named list: $bad\"; false; fi",
+    "git diff --cached --quiet || git commit -m \"Release $TAG (build $EXPECTED)\"",
+    "git tag -a \"$TAG\" -m \"Debt Snowball $TAG, build $EXPECTED\"",
+    "GIT_TERMINAL_PROMPT=0 git push origin main",
+    "GIT_TERMINAL_PROMPT=0 git push origin \"$TAG\""
+  ],
+  "deploy_notes": "Named paths only, never git add -A or commit -a, never --force. The two guards after the add stop the release on an iCloud conflict copy ('name 2.ext') or any path outside $ALLOWED. The commit runs only if something is staged (a re-release of an unchanged master may stage nothing; the tag then goes on the current commit).",
+  "pages_check": [
+    "GH_TOKEN=$(/opt/homebrew/bin/gh auth token --user ElectricBuffaloApps) /opt/homebrew/bin/gh api repos/ElectricBuffaloApps/debt-snowball/pages",
+    "GH_TOKEN=$(/opt/homebrew/bin/gh auth token --user ElectricBuffaloApps) /opt/homebrew/bin/gh api repos/ElectricBuffaloApps/debt-snowball/pages/builds/latest"
+  ],
+  "pages_check_use": "GET only. After any push to main: source.path must be /docs and builds/latest must have status built for the pushed commit (pages_wait proves it).",
+  "latest_build_at": "GH_TOKEN=$(/opt/homebrew/bin/gh auth token --user ElectricBuffaloApps) /opt/homebrew/bin/gh api repos/ElectricBuffaloApps/debt-snowball/pages/builds/latest --jq .created_at",
+  "pages_wait": "start=$(date +%s); ok=; while :; do P=$(GH_TOKEN=$(/opt/homebrew/bin/gh auth token --user ElectricBuffaloApps) /opt/homebrew/bin/gh api repos/ElectricBuffaloApps/debt-snowball/pages 2>/dev/null); B=$(GH_TOKEN=$(/opt/homebrew/bin/gh auth token --user ElectricBuffaloApps) /opt/homebrew/bin/gh api repos/ElectricBuffaloApps/debt-snowball/pages/builds/latest 2>/dev/null); if P=\"$P\" B=\"$B\" WANT_PATH=\"$WANT_PATH\" WANT_COMMIT=\"$WANT_COMMIT\" AFTER=\"$AFTER\" python3 -c 'import os,json; p=json.loads(os.environ[\"P\"] or \"{}\"); b=json.loads(os.environ[\"B\"] or \"{}\"); path=(p.get(\"source\") or {}).get(\"path\"); st=b.get(\"status\"); c=b.get(\"commit\") or \"\"; at=b.get(\"created_at\") or \"\"; print(\"pages: source.path %s, latest build %s, commit %s, created %s (want %s, %s, after %s)\" % (path, st, c[:7], at, os.environ[\"WANT_PATH\"], os.environ[\"WANT_COMMIT\"][:7], os.environ[\"AFTER\"] or \"-\")); raise SystemExit(0 if path == os.environ[\"WANT_PATH\"] and st == \"built\" and c == os.environ[\"WANT_COMMIT\"] and at > os.environ[\"AFTER\"] else 1)'; then ok=1; break; fi; [ $(( $(date +%s) - start )) -ge 600 ] && break; sleep 20; done; if [ -n \"$ok\" ]; then echo \"PAGES OK\"; else echo \"PAGES NOT PROVEN after 600 s (last state above)\"; false; fi",
+  "pages_wait_use": "GET only. Set these shell variables first: WANT_PATH (/ or /docs), WANT_COMMIT (full hash: git rev-parse) and AFTER (a created_at read with latest_build_at BEFORE the push or PUT being proved). Passes only when Pages serves WANT_PATH and builds/latest is status built, for WANT_COMMIT, created later than AFTER. AFTER is GitHub's own clock, so the Mac's clock cannot fool it; a build from before the push or PUT can never pass. Polls every 20 s and stops on 600 s elapsed.",
+  "live_check": {
+    "url": "https://electricbuffaloapps.github.io/debt-snowball/version.json?cb=<unix time>",
+    "field": "build",
+    "expected": "$EXPECTED",
+    "timeout_seconds": 600,
+    "interval_seconds": 20,
+    "command": "start=$(date +%s); got=; while :; do got=$(curl -fsS -m 15 \"https://electricbuffaloapps.github.io/debt-snowball/version.json?cb=$(date +%s)\" | python3 -c \"import sys,json;print(json.load(sys.stdin)['build'])\" 2>/dev/null); [ \"$got\" = \"$EXPECTED\" ] && break; [ $(( $(date +%s) - start )) -ge 600 ] && break; sleep 20; done; if [ \"$got\" = \"$EXPECTED\" ]; then echo \"LIVE OK $got\"; else echo \"NOT LIVE after 600 s: last saw '$got', wanted $EXPECTED\"; false; fi"
+  },
+  "live_page_check": "if curl -fsS -m 15 \"https://electricbuffaloapps.github.io/debt-snowball/?cb=$(date +%s)\" | cmp -s - docs/index.html; then echo \"PAGE OK\"; else echo \"STOP: the live page did not load or differs from docs/index.html\"; false; fi",
+  "rollback": {
+    "works_for": "tags from this release on. v4.4 and v4.5 hold the site at the repo root, not in docs/; the first step refuses them. For those, redeploy by hand with Dave.",
+    "steps": [
+      "if git cat-file -e \"$PREV:docs/index.html\" 2>/dev/null && git cat-file -e \"$PREV:docs/version.json\" 2>/dev/null; then echo \"$PREV has docs/\"; else echo \"STOP: $PREV has no docs/ site (it predates the docs/ layout). Do not roll back this way; tell Dave\"; false; fi",
+      "git rm -r -q docs",
+      "git checkout \"$PREV\" -- docs",
+      "git commit -m \"Roll back to $PREV\"",
+      "GIT_TERMINAL_PROMPT=0 git push origin main"
+    ],
+    "then": "EXPECTED=$(git show \"$PREV:docs/version.json\" | python3 -c \"import sys,json;print(json.load(sys.stdin)['build'])\"), then live_check and pages_check. Say in the report that a rollback happened and why.",
+    "not_for": "A failed first release: use first_release.failure_route instead.",
+    "needs_yes": true
+  },
+  "first_release": {
+    "first_commit": "6364507075151138a57e07a1c2255e8387fca528",
+    "run_once": true,
+    "remove_from_recipe_after": "the first release has gone live and pages_check shows source.path /docs; delete this whole block then.",
+    "why": "R6. GitHub still serves main / from the old root files. Three local commits sit between the first commit and the one that removes the root copies (first_commit: docs/ plus source plus the old root site; then tests; then this recipe; then the root removal). Push only the first commit, switch Pages to /docs, and prove a build made from /docs after the switch. Whether GitHub starts a build when the source changes with no new commit is not documented, so if no new build appears, push the commit before the root removal ($KEEP), which still has both copies and does start a build. Only once /docs is proven is the root removal pushed. At every point the source GitHub serves holds a page: / has the root copies until /docs is proven, and /docs exists from the first push.",
+    "order": "Run test, build, expected_build, variables and preflight, then the first three deploy commands (add and both guards), the commit and the tag (all local). Then run these variables and steps INSTEAD of the two deploy pushes.",
+    "variables": [
+      "FIRST=6364507075151138a57e07a1c2255e8387fca528",
+      "ROOT_GONE=$(git log -1 --format=%H --diff-filter=D main -- index.html)",
+      "KEEP=$(git rev-parse \"$ROOT_GONE^\")",
+      "git merge-base --is-ancestor origin/main \"$FIRST\" && git merge-base --is-ancestor \"$FIRST\" \"$KEEP\" && git cat-file -e \"$FIRST:index.html\" && git cat-file -e \"$FIRST:docs/index.html\" && git cat-file -e \"$KEEP:index.html\" && git cat-file -e \"$KEEP:docs/index.html\" && ! git cat-file -e \"$ROOT_GONE:index.html\" 2>/dev/null && echo \"first-release commits OK\""
+    ],
+    "steps": [
+      "1. AFTER=$(<latest_build_at>)",
+      "2. GIT_TERMINAL_PROMPT=0 git push origin \"$FIRST:main\"",
+      "3. WANT_PATH=/; WANT_COMMIT=$FIRST; <pages_wait> (GitHub rebuilds / from the first commit; the live site is still the root copy)",
+      "4. AFTER=$(<latest_build_at>); SWITCHED=1",
+      "5. GH_TOKEN=$(/opt/homebrew/bin/gh auth token --user ElectricBuffaloApps) /opt/homebrew/bin/gh api -X PUT repos/ElectricBuffaloApps/debt-snowball/pages -f 'source[branch]=main' -f 'source[path]=/docs'",
+      "6. WANT_PATH=/docs; WANT_COMMIT=$FIRST; <pages_wait>. Passes: go to 8. Times out with source.path /docs and a build created no later than $AFTER (GitHub started no build for the switch): go to 7. Anything else (source.path not /docs, status errored): failure_route.",
+      "7. GIT_TERMINAL_PROMPT=0 git push origin \"$KEEP:main\", then WANT_PATH=/docs; WANT_COMMIT=$KEEP; <pages_wait> (AFTER unchanged). Fails: failure_route.",
+      "8. <live_check> and <live_page_check> (EXPECTED from this build: the site now comes from /docs).",
+      "9. AFTER=$(<latest_build_at>); ROOT_REMOVED=1; GIT_TERMINAL_PROMPT=0 git push origin main",
+      "10. WANT_PATH=/docs; WANT_COMMIT=$(git rev-parse main); <pages_wait>, then <live_check> and <live_page_check>",
+      "11. GIT_TERMINAL_PROMPT=0 git push origin \"$TAG\" v4.4 v4.5",
+      "12. Both pages_check commands once more; put source.path and the build's commit in the release record."
+    ],
+    "failure_route": "Do NOT run the rollback steps (there is no earlier tag with docs/). If SWITCHED is set and ROOT_REMOVED is not (the root copies are still on GitHub's main), put the source back to / with put_source_root, then run pages_check to show source.path /. If ROOT_REMOVED is set, do NOT put the source back (main has no page at the root any more); leave Pages on /docs. Either way: stop, push nothing more, and tell Dave in the chat what failed, the last pages_wait line, and where GitHub's main is (git ls-remote origin main).",
+    "put_source_root": "GH_TOKEN=$(/opt/homebrew/bin/gh auth token --user ElectricBuffaloApps) /opt/homebrew/bin/gh api -X PUT repos/ElectricBuffaloApps/debt-snowball/pages -f 'source[branch]=main' -f 'source[path]=/'",
+    "dry_run_forms": [
+      "GIT_TERMINAL_PROMPT=0 git push --dry-run origin \"$FIRST:main\"",
+      "GIT_TERMINAL_PROMPT=0 git push --dry-run origin \"$KEEP:main\"",
+      "GIT_TERMINAL_PROMPT=0 git push --dry-run origin main",
+      "GIT_TERMINAL_PROMPT=0 git push --dry-run origin v4.4 v4.5",
+      "AFTER=; WANT_PATH=/; WANT_COMMIT=$(git rev-parse origin/main); <pages_wait> (GET only; passes on today's live build from /)"
+    ],
+    "never_dry_run": "the Pages PUTs (step 5 and put_source_root)",
+    "needs_yes": true
+  },
+  "needs_yes": true,
+  "after": {
+    "artifact_republish": "Only if the master changed since the last release tag, i.e. $TAG has no -rN suffix (an -rN tag means the build id was unchanged). If changed, tell Dave to republish his claude.ai artifact from debt-snowball.html in his browser (its URL is in dev/private-notes.md, which is not tracked). If unchanged, say 'artifact unchanged'.",
+    "portfolio": "(cd ../.. && python3 Dev/portfolio.py set debt-snowball live_version=$VERSION last_release=$(date +%F))",
+    "portfolio_use": "The subshell runs it from the PA folder (two levels up) and leaves the shell in Finance/debt-snowball/. On the first release also set: repo='ElectricBuffaloApps/debt-snowball (public; source at root, site in docs/)' recipe=Finance/debt-snowball/dev/release.json tests='node --test tests/*.test.mjs (7 rule checks)' deploy='GitHub Pages from main /docs by dev/release.json, plus claude.ai artifact'.",
+    "release_record": "dev/release-<yyyy-mm-dd>.md: version, build id, commit, $TAG, $PREV, what changed, test counts, live check result, pages_check result, rollback command. Then `git add -- dev/release-<yyyy-mm-dd>.md`, commit, and push with the same yes."
+  },
+  "runner_notes": [
+    "Found by the release dry run of 12/11/2026.",
+    "Run under bash, not zsh: zsh does not split $NAMED into words (git add fails with exit 128). From a zsh tool shell, wrap each step in bash -c or put the steps in one bash script.",
+    "export every variable (EXPECTED, VERSION, PREV, TAG, NAMED) so later steps and child shells see it; an unexported EXPECTED makes live_check wait the full 600 s.",
+    "The waits can take up to 600 s each: give the tool call a timeout of at least 660 s or run the wait in the background.",
+    "Do not run under set -e: the guards print STOP and return false on purpose.",
+    "When the master is unchanged nothing is staged, no commit is made and the tag goes on the current HEAD; live_check then proves only that the site is still up, and pages_wait is the proof of the release.",
+    "The release record is pushed after the release: run pages_wait and live_check once more after that push."
+  ]
 }
