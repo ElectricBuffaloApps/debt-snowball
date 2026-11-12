@@ -1,6 +1,6 @@
 {
   "id": "debt-snowball",
-  "how_to_run": "Run every command from Finance/debt-snowball/ with bash, in this order: test, build, expected_build (set EXPECTED), variables, preflight, deploy (only after Dave's yes in the chat), live_check, live_page_check, pages_check, after. The first release is different: see first_release. Run all commands of one release in the same shell so the variables stay set. '<name>' inside a command means the command string in the field of that name in this file, pasted in whole (each rule is written once). A command that exits non-zero stops the release. Never print a token. Dry run (no yes from Dave): run everything up to preflight, then deploy_dry_run (and first_release.dry_run_forms while that block exists), and stop.",
+  "how_to_run": "Run every command from Finance/debt-snowball/ with bash, in this order: test, build, expected_build (set EXPECTED), variables, preflight, deploy (only after Dave's yes in the chat), live_check, live_page_check, pages_check, after. Run all commands of one release in the same shell so the variables stay set. '<name>' inside a command means the command string in the field of that name in this file, pasted in whole (each rule is written once). A command that exits non-zero stops the release. Never print a token. Dry run (no yes from Dave): run everything up to preflight, then deploy_dry_run, and stop.",
   "account": "ElectricBuffaloApps",
   "remote": "https://github.com/ElectricBuffaloApps/debt-snowball.git",
   "version_from": "sed -n 's/.*class=\"ver\"[^>]*>v\\([0-9.]*\\)<.*/\\1/p' debt-snowball.html | head -1",
@@ -60,7 +60,7 @@
   },
   "live_page_check": "if curl -fsS -m 15 \"https://electricbuffaloapps.github.io/debt-snowball/?cb=$(date +%s)\" | cmp -s - docs/index.html; then echo \"PAGE OK\"; else echo \"STOP: the live page did not load or differs from docs/index.html\"; false; fi",
   "rollback": {
-    "works_for": "tags from this release on. v4.4 and v4.5 hold the site at the repo root, not in docs/; the first step refuses them. For those, redeploy by hand with Dave.",
+    "works_for": "v4.5-r2 and every later tag. v4.4 and v4.5 hold the site at the repo root, not in docs/; the first step refuses them. For those, redeploy by hand with Dave.",
     "steps": [
       "if git cat-file -e \"$PREV:docs/index.html\" 2>/dev/null && git cat-file -e \"$PREV:docs/version.json\" 2>/dev/null; then echo \"$PREV has docs/\"; else echo \"STOP: $PREV has no docs/ site (it predates the docs/ layout). Do not roll back this way; tell Dave\"; false; fi",
       "git rm -r -q docs",
@@ -69,53 +69,14 @@
       "GIT_TERMINAL_PROMPT=0 git push origin main"
     ],
     "then": "EXPECTED=$(git show \"$PREV:docs/version.json\" | python3 -c \"import sys,json;print(json.load(sys.stdin)['build'])\"), then live_check and pages_check. Say in the report that a rollback happened and why.",
-    "not_for": "A failed first release: use first_release.failure_route instead.",
-    "needs_yes": true
-  },
-  "first_release": {
-    "first_commit": "6364507075151138a57e07a1c2255e8387fca528",
-    "run_once": true,
-    "remove_from_recipe_after": "the first release has gone live and pages_check shows source.path /docs; delete this whole block then.",
-    "why": "R6. GitHub still serves main / from the old root files. Three local commits sit between the first commit and the one that removes the root copies (first_commit: docs/ plus source plus the old root site; then tests; then this recipe; then the root removal). Push only the first commit, switch Pages to /docs, and prove a build made from /docs after the switch. Whether GitHub starts a build when the source changes with no new commit is not documented, so if no new build appears, push the commit before the root removal ($KEEP), which still has both copies and does start a build. Only once /docs is proven is the root removal pushed. At every point the source GitHub serves holds a page: / has the root copies until /docs is proven, and /docs exists from the first push.",
-    "order": "Run test, build, expected_build, variables and preflight, then the first three deploy commands (add and both guards), the commit and the tag (all local). Then run these variables and steps INSTEAD of the two deploy pushes.",
-    "variables": [
-      "FIRST=6364507075151138a57e07a1c2255e8387fca528",
-      "ROOT_GONE=$(git log -1 --format=%H --diff-filter=D main -- index.html)",
-      "KEEP=$(git rev-parse \"$ROOT_GONE^\")",
-      "git merge-base --is-ancestor origin/main \"$FIRST\" && git merge-base --is-ancestor \"$FIRST\" \"$KEEP\" && git cat-file -e \"$FIRST:index.html\" && git cat-file -e \"$FIRST:docs/index.html\" && git cat-file -e \"$KEEP:index.html\" && git cat-file -e \"$KEEP:docs/index.html\" && ! git cat-file -e \"$ROOT_GONE:index.html\" 2>/dev/null && echo \"first-release commits OK\""
-    ],
-    "steps": [
-      "1. AFTER=$(<latest_build_at>)",
-      "2. GIT_TERMINAL_PROMPT=0 git push origin \"$FIRST:main\"",
-      "3. WANT_PATH=/; WANT_COMMIT=$FIRST; <pages_wait> (GitHub rebuilds / from the first commit; the live site is still the root copy)",
-      "4. AFTER=$(<latest_build_at>); SWITCHED=1",
-      "5. GH_TOKEN=$(/opt/homebrew/bin/gh auth token --user ElectricBuffaloApps) /opt/homebrew/bin/gh api -X PUT repos/ElectricBuffaloApps/debt-snowball/pages -f 'source[branch]=main' -f 'source[path]=/docs'",
-      "6. WANT_PATH=/docs; WANT_COMMIT=$FIRST; <pages_wait>. Passes: go to 8. Times out with source.path /docs and a build created no later than $AFTER (GitHub started no build for the switch): go to 7. Anything else (source.path not /docs, status errored): failure_route.",
-      "7. GIT_TERMINAL_PROMPT=0 git push origin \"$KEEP:main\", then WANT_PATH=/docs; WANT_COMMIT=$KEEP; <pages_wait> (AFTER unchanged). Fails: failure_route.",
-      "8. <live_check> and <live_page_check> (EXPECTED from this build: the site now comes from /docs).",
-      "9. AFTER=$(<latest_build_at>); ROOT_REMOVED=1; GIT_TERMINAL_PROMPT=0 git push origin main",
-      "10. WANT_PATH=/docs; WANT_COMMIT=$(git rev-parse main); <pages_wait>, then <live_check> and <live_page_check>",
-      "11. GIT_TERMINAL_PROMPT=0 git push origin \"$TAG\" v4.4 v4.5",
-      "12. Both pages_check commands once more; put source.path and the build's commit in the release record."
-    ],
-    "failure_route": "Do NOT run the rollback steps (there is no earlier tag with docs/). If SWITCHED is set and ROOT_REMOVED is not (the root copies are still on GitHub's main), put the source back to / with put_source_root, then run pages_check to show source.path /. If ROOT_REMOVED is set, do NOT put the source back (main has no page at the root any more); leave Pages on /docs. Either way: stop, push nothing more, and tell Dave in the chat what failed, the last pages_wait line, and where GitHub's main is (git ls-remote origin main).",
-    "put_source_root": "GH_TOKEN=$(/opt/homebrew/bin/gh auth token --user ElectricBuffaloApps) /opt/homebrew/bin/gh api -X PUT repos/ElectricBuffaloApps/debt-snowball/pages -f 'source[branch]=main' -f 'source[path]=/'",
-    "dry_run_forms": [
-      "GIT_TERMINAL_PROMPT=0 git push --dry-run origin \"$FIRST:main\"",
-      "GIT_TERMINAL_PROMPT=0 git push --dry-run origin \"$KEEP:main\"",
-      "GIT_TERMINAL_PROMPT=0 git push --dry-run origin main",
-      "GIT_TERMINAL_PROMPT=0 git push --dry-run origin v4.4 v4.5",
-      "AFTER=; WANT_PATH=/; WANT_COMMIT=$(git rev-parse origin/main); <pages_wait> (GET only; passes on today's live build from /)"
-    ],
-    "never_dry_run": "the Pages PUTs (step 5 and put_source_root)",
     "needs_yes": true
   },
   "needs_yes": true,
   "after": {
     "artifact_republish": "Only if the master changed since the last release tag, i.e. $TAG has no -rN suffix (an -rN tag means the build id was unchanged). If changed, tell Dave to republish his claude.ai artifact from debt-snowball.html in his browser (its URL is in dev/private-notes.md, which is not tracked). If unchanged, say 'artifact unchanged'.",
     "portfolio": "(cd ../.. && python3 Dev/portfolio.py set debt-snowball live_version=$VERSION last_release=$(date +%F))",
-    "portfolio_use": "The subshell runs it from the PA folder (two levels up) and leaves the shell in Finance/debt-snowball/. On the first release also set: repo='ElectricBuffaloApps/debt-snowball (public; source at root, site in docs/)' recipe=Finance/debt-snowball/dev/release.json tests='node --test tests/*.test.mjs (7 rule checks)' deploy='GitHub Pages from main /docs by dev/release.json, plus claude.ai artifact'.",
-    "release_record": "dev/release-<yyyy-mm-dd>.md: version, build id, commit, $TAG, $PREV, what changed, test counts, live check result, pages_check result, rollback command. Then `git add -- dev/release-<yyyy-mm-dd>.md`, commit, and push with the same yes."
+    "portfolio_use": "The subshell runs it from the PA folder (two levels up) and leaves the shell in Finance/debt-snowball/.",
+    "release_record": "dev/release-<yyyy-mm-dd>.md: version, build id, commit, $TAG, $PREV, what changed, test counts, live check result, pages_check result, rollback command. Then `git add -- dev/release-<yyyy-mm-dd>.md`, commit, and push with the same yes. That push starts a Pages build: prove it with pages_wait (WANT_COMMIT = the record commit), then live_check and live_page_check."
   },
   "runner_notes": [
     "Found by the release dry run of 12/11/2026.",
