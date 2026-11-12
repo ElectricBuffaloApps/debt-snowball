@@ -1,4 +1,4 @@
-var CACHE = 'debt-snowball-604623b10c';
+var CACHE = 'debt-snowball-a2758c73bd';
 var FILES = ["./", "index.html", "manifest.webmanifest", "apple-touch-icon.png", "icon-192.png", "icon-512.png"];
 self.addEventListener('install', function(e){
   e.waitUntil(caches.open(CACHE).then(function(c){ return c.addAll(FILES); }));

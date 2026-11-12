@@ -286,7 +286,7 @@ footer p+p{margin-top:6px}
 <body>
 <div class="wrap">
   <header class="topbar">
-    <div class="brand"><span class="balls" aria-hidden="true"><i></i><i></i><i></i></span>Debt Snowball<span class="ver" title="Version 4.4, 11/11/2026">v4.4</span></div>
+    <div class="brand"><span class="balls" aria-hidden="true"><i></i><i></i><i></i></span>Debt Snowball<span class="ver" title="Version 4.5, 12/11/2026">v4.5</span></div>
     <div class="topright"><span class="savepill" id="savePill" data-s="example">Examples, not saved</span><button type="button" class="btn small primary" id="topAdd">Add a debt</button></div>
   </header>
 
@@ -808,8 +808,6 @@ function simulate(debts, budget, strategy, fixed){
     var row = {pays:{}, setAside:{}, partAside:{}, partPay:{}, partAfter:{}, focus:null, interest:0, extra:0, paid:0, dlShort:0, afterPay:{}, bal:{}, total:0};
     var left = pay;
     lv.forEach(function(d){ var p = Math.min(d.minPay, d.bal); payInto(d, p); row.pays[d.id] = p; left -= p; });
-    // fixed payments (carrying on as now): each debt gets its own amount and nothing rolls on
-    if (fixed) left = 0;
     // 0% deadlines: on top of the minimum, an even share of what's left so each deal clears in the payments it has left
     var deals = [];
     lv.forEach(function(d){ d.parts.forEach(function(p){ if (p.bal > 0.004 && p.n - m > 0) deals.push({d:d, p:p}); }); });
@@ -938,7 +936,7 @@ function minText(d){ return (d.minPay > 0.004 ? money(d.minPay) + ' minimum' : '
 function payNowOf(d){ return Math.max(d.payNow || 0, d.minPay); }
 function hasPayNow(){ return live().some(function(d){ return d.payNow > 0.004; }); }
 function paySum(){ return Math.round(live().reduce(function(t, d){ return t + payNowOf(d); }, 0) * 100) / 100; }
-// carrying on as now: every debt keeps its own payment until it clears, then that money stops
+// carrying on as now: every debt keeps its own payment, and a cleared debt's payment rolls on in the picked order
 function asNowSim(){
   var fx = {}; live().forEach(function(d){ fx[d.id] = payNowOf(d); });
   return simulate(state.debts, null, state.strategy, fx);
@@ -1217,7 +1215,7 @@ function renderLevels(sim){
   var orderName = STRAT[state.strategy].name.toLowerCase();
   if (own){
     rows.push({name:'Carrying on as you pay now', amount:sum,
-      sub:(asNow.finished ? planLine(asNow) + '.' : 'Some debts never clear this way.') + ' Each debt keeps getting what you pay it today, and that money stops when the debt clears.'});
+      sub:(asNow.finished ? planLine(asNow) + '.' : 'Some debts never clear this way.') + ' Each debt keeps getting what you pay it today. When one clears, its payment rolls on to the next debt in the ' + orderName + ' order.'});
     if (Math.abs(sim.pay - sum) > 0.5) nowSub += ' Your payments debt by debt add up to ' + money(sum) + '. <button type="button" class="btn small" data-usesum>Use ' + money(sum) + '</button>';
     else if (asNow.finished && sim.finished){
       var gm = asNow.months.length - sim.months.length, gi = asNow.interest - sim.interest;
@@ -2210,7 +2208,7 @@ initCloud().then(endBoot, endBoot);
 </script>
 <script>if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
 <script>(function(){
-var BUILD='604623b10c',shown=false;
+var BUILD='a2758c73bd',shown=false;
 function check(){
   if(shown||location.protocol==='file:')return;
   fetch('version.json?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.json();}).then(function(v){
