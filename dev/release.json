@@ -1,6 +1,6 @@
 {
   "id": "debt-snowball",
-  "how_to_run": "Run every command from Finance/debt-snowball/ with bash, in this order: test, build, expected_build (set EXPECTED), variables, preflight, deploy (only after Dave's yes in the chat), live_check, live_page_check, pages_check, after. Run all commands of one release in the same shell so the variables stay set. '<name>' inside a command means the command string in the field of that name in this file, pasted in whole (each rule is written once). A command that exits non-zero stops the release. Never print a token. Dry run (no yes from Dave): run everything up to preflight, then deploy_dry_run, and stop.",
+  "how_to_run": "Run every command from the project folder with bash, in this order: test, build, expected_build (set EXPECTED), variables, preflight, deploy (only after the owner's yes in the chat), live_check, live_page_check, pages_check, after. Run all commands of one release in the same shell so the variables stay set. '<name>' inside a command means the command string in the field of that name in this file, pasted in whole (each rule is written once). A command that exits non-zero stops the release. Never print a token. Dry run (no yes from the owner): run everything up to preflight, then deploy_dry_run, and stop.",
   "account": "ElectricBuffaloApps",
   "remote": "https://github.com/ElectricBuffaloApps/debt-snowball.git",
   "version_from": "sed -n 's/.*class=\"ver\"[^>]*>v\\([0-9.]*\\)<.*/\\1/p' debt-snowball.html | head -1",
@@ -12,8 +12,8 @@
     "VERSION=$(<version_from>)",
     "PREV=$(<previous_tag>)",
     "TAG=$(<release_tag>)",
-    "NAMED='debt-snowball.html build_standalone.py tests docs README.md .gitignore .nojekyll dev/release.json'",
-    "ALLOWED='^(debt-snowball\\.html|build_standalone\\.py|tests/.*|docs/.*|README\\.md|\\.gitignore|\\.nojekyll|dev/release\\.json|dev/release-[0-9-]+\\.md)$'"
+    "NAMED='debt-snowball.html build_standalone.py tests docs README.md LICENSE .gitignore .nojekyll dev/release.json'",
+    "ALLOWED='^(debt-snowball\\.html|build_standalone\\.py|tests/.*|docs/.*|README\\.md|LICENSE|\\.gitignore|\\.nojekyll|dev/release\\.json|dev/release-[0-9-]+\\.md)$'"
   ],
   "variables_use": "Set them after expected_build ($TAG needs $EXPECTED and $VERSION). $NAMED is used unquoted on purpose (no path in it has a space); $ALLOWED is the one list of paths a release may stage.",
   "preflight": [
@@ -60,9 +60,9 @@
   },
   "live_page_check": "if curl -fsS -m 15 \"https://electricbuffaloapps.github.io/debt-snowball/?cb=$(date +%s)\" | cmp -s - docs/index.html; then echo \"PAGE OK\"; else echo \"STOP: the live page did not load or differs from docs/index.html\"; false; fi",
   "rollback": {
-    "works_for": "v4.5-r2 and every later tag. v4.4 and v4.5 hold the site at the repo root, not in docs/; the first step refuses them. For those, redeploy by hand with Dave.",
+    "works_for": "v4.5-r2 and every later tag. v4.4 and v4.5 hold the site at the repo root, not in docs/; the first step refuses them. For those, redeploy by hand with the owner.",
     "steps": [
-      "if git cat-file -e \"$PREV:docs/index.html\" 2>/dev/null && git cat-file -e \"$PREV:docs/version.json\" 2>/dev/null; then echo \"$PREV has docs/\"; else echo \"STOP: $PREV has no docs/ site (it predates the docs/ layout). Do not roll back this way; tell Dave\"; false; fi",
+      "if git cat-file -e \"$PREV:docs/index.html\" 2>/dev/null && git cat-file -e \"$PREV:docs/version.json\" 2>/dev/null; then echo \"$PREV has docs/\"; else echo \"STOP: $PREV has no docs/ site (it predates the docs/ layout). Do not roll back this way; tell the owner\"; false; fi",
       "git rm -r -q docs",
       "git checkout \"$PREV\" -- docs",
       "git commit -m \"Roll back to $PREV\"",
@@ -73,9 +73,9 @@
   },
   "needs_yes": true,
   "after": {
-    "artifact_republish": "Only if the master changed since the last release tag, i.e. $TAG has no -rN suffix (an -rN tag means the build id was unchanged). If changed, tell Dave to republish his claude.ai artifact from debt-snowball.html in his browser (its URL is in dev/private-notes.md, which is not tracked). If unchanged, say 'artifact unchanged'.",
+    "artifact_republish": "Only if the master changed since the last release tag, i.e. $TAG has no -rN suffix (an -rN tag means the build id was unchanged). If changed, tell the owner to republish the claude.ai artifact from debt-snowball.html in the browser (its URL is in dev/private-notes.md, which is not tracked). If unchanged, say 'artifact unchanged'.",
     "portfolio": "(cd ../.. && python3 Dev/portfolio.py set debt-snowball live_version=$VERSION last_release=$(date +%F))",
-    "portfolio_use": "The subshell runs it from the PA folder (two levels up) and leaves the shell in Finance/debt-snowball/.",
+    "portfolio_use": "The subshell runs it from two levels up and leaves the shell in the project folder.",
     "release_record": "dev/release-<yyyy-mm-dd>.md: version, build id, commit, $TAG, $PREV, what changed, test counts, live check result, pages_check result, rollback command. Then `git add -- dev/release-<yyyy-mm-dd>.md`, commit, and push with the same yes. That push starts a Pages build: prove it with pages_wait (WANT_COMMIT = the record commit), then live_check and live_page_check."
   },
   "runner_notes": [

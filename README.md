@@ -5,23 +5,30 @@ Debt repayment planner: snowball, avalanche or balanced order, 0% and store card
 | What | Where |
 |------|-------|
 | Master page (edit this) | `debt-snowball.html` |
-| Dave's own copy | a claude.ai artifact published from the master (syncs across his devices) |
+| Artifact copy | a claude.ai artifact published from the master |
 | Standalone app, for sharing | https://electricbuffaloapps.github.io/debt-snowball/ |
 | Build script | `build_standalone.py` (master in, `docs/` out) |
 | Built site (never edit by hand) | `docs/`, served by GitHub Pages from `main` `/docs` |
-| Payment engine tests | `tests/` (`node --test tests/*.test.mjs`) |
+| Engine and load-choice tests | `tests/` (`node --test tests/*.test.mjs`) |
+| Licence | `LICENSE` |
 | Release recipe | `dev/release.json` |
 | Release records | `dev/release-<yyyy-mm-dd>.md` |
 
-This folder is the git repo (GitHub `ElectricBuffaloApps/debt-snowball`, public). Tracked: the master, the build script, `tests/`, `docs/`, this README, `.gitignore`, `.nojekyll`, `dev/release.json` and the release records. Not tracked: `archive/` and the rest of `dev/` (build notes).
+This folder is the git repo (GitHub `ElectricBuffaloApps/debt-snowball`, public). Tracked: the master, the build script, `tests/`, `docs/`, this README, `LICENSE`, `.gitignore`, `.nojekyll`, `dev/release.json` and the release records. Not tracked: `archive/` and the rest of `dev/` (build notes).
+
+Copyright (c) 2026 Electric Buffalo, all rights reserved: the code may be read but not copied, changed or redistributed without written permission (see `LICENSE`).
+
+Only our own apps are published under this GitHub account (ElectricBuffaloApps).
 
 ## Changing it
+
+The page is one large file on purpose: one page, one file, so it can be published as a single artifact and built into the app without a bundler.
 
 1. Edit `debt-snowball.html`. Bump the version shown in the top bar (`<span class="ver">`) and its date.
 2. Run the tests: `node --test tests/*.test.mjs` from this folder (Node 24 from NVM, no packages; a bare folder argument fails on Node 24). They read `debt-snowball.html`, or the file named in the environment variable `DEBT_MASTER` if it is set, and write only a scratch file in the system temp folder, which they delete.
 3. Build: `python3 build_standalone.py`. It reads `debt-snowball.html`, writes `docs/` (and removes anything in `docs/` it did not write), and `docs/version.json` carries the build id.
-4. Republish Dave's claude.ai artifact from the same file (only when the master changed).
-5. Release by the recipe in `dev/release.json`: preflight, commit the named paths, annotated tag `v<version>`, push, then poll the live `version.json` until it shows the new build id. Nothing is pushed until Dave says yes.
+4. Republish the claude.ai artifact from the same file (only when the master changed).
+5. Release by the recipe in `dev/release.json`: preflight, commit the named paths, annotated tag `v<version>`, push, then poll the live `version.json` until it shows the new build id. Nothing is pushed until the owner says yes.
 
 Never `git add -A`, never `commit -a`, never force push.
 

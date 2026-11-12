@@ -65,6 +65,7 @@ p{margin:0}
 .brand{display:flex;align-items:center;gap:10px;font-family:var(--f-display);font-weight:800;font-size:1.2rem;letter-spacing:-.01em}
 .topright{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .ver{font-family:var(--f-mono);font-size:.72rem;font-weight:500;color:var(--ink-3);letter-spacing:.02em}
+.disclaimer{font-size:.78rem;color:var(--ink-3);line-height:1.4;margin-top:-18px}
 .balls{display:flex;align-items:flex-end;gap:3px}
 .balls i{display:block;border-radius:50%;background:var(--accent)}
 .balls i:nth-child(1){width:6px;height:6px;opacity:.5}
@@ -73,7 +74,7 @@ p{margin:0}
 .savepill{font-family:var(--f-mono);font-size:.72rem;color:var(--ink-2);display:inline-flex;align-items:center;gap:7px;letter-spacing:.02em}
 .savepill::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ink-3)}
 .savepill[data-s="cloud"]::before{background:var(--good)}
-.savepill[data-s="local"]::before{background:var(--warn)}
+.savepill[data-s="local"]::before,.savepill[data-s="failed"]::before{background:var(--warn)}
 .savepill[data-s="none"]::before{background:var(--bad)}
 
 /* example banner */
@@ -286,13 +287,19 @@ footer p+p{margin-top:6px}
 <body>
 <div class="wrap">
   <header class="topbar">
-    <div class="brand"><span class="balls" aria-hidden="true"><i></i><i></i><i></i></span>Debt Snowball<span class="ver" title="Version 4.5, 12/11/2026">v4.5</span></div>
+    <div class="brand"><span class="balls" aria-hidden="true"><i></i><i></i><i></i></span>Debt Snowball<span class="ver" title="Version 4.6, 12/11/2026">v4.6</span></div>
     <div class="topright"><span class="savepill" id="savePill" data-s="example">Examples, not saved</span><button type="button" class="btn small primary" id="topAdd">Add a debt</button></div>
   </header>
+  <p class="disclaimer">This is a calculator, not financial advice. It shows the maths on the numbers you type in.</p>
 
   <div class="banner" id="exampleBanner" hidden>
     <p><strong>These are example debts</strong> so you can see how it works. Nothing is saved until you add your own.</p>
     <button type="button" class="btn primary" id="clearExamples">Clear examples and add mine</button>
+  </div>
+
+  <div class="banner" id="sharedOffer" hidden>
+    <p><strong>Use the plan saved in this browser?</strong> <span id="sharedOfferText"></span></p>
+    <div class="actions"><button type="button" class="btn primary" id="sharedYes">Yes</button><button type="button" class="btn" id="sharedNo">No</button></div>
   </div>
 
   <section class="hero" aria-live="polite">
@@ -641,77 +648,274 @@ function normalise(o){
 }
 function plain(s){ var c = JSON.parse(JSON.stringify(s)); delete c.example; return c; }
 
-/* ---------- storage: claude.ai account when available, this browser always ---------- */
-var localOk = true;
-var cloud = null;          // { ref }
-var cloudTimer = null, cloudBusy = false, cloudDirty = false;
-var booting = false;
+// Which plan the page keeps when the account document arrives (spec R2). Kept free of the page,
+// storage and the live state so the tests can run it. local: the page's plan now. account: the
+// account document, normalised, or null when there is none. readBefore: this page had already read
+// or written this same account document (same updatedAt). write: true when the local plan should go
+// to the account.
+function loadChoice(local, account, readBefore){
+  var localIsExample = !!local.example;
+  var localHasDebts = local.debts.length > 0;
+  // an account document with no debts counts as none, so it never beats a plan with debts (R2c)
+  if (!account || !account.debts.length) return {use:'local', write: !localIsExample && localHasDebts, rule:1};
+  var localNewer = !localIsExample && (local.updatedAt || '') > (account.updatedAt || '');
+  if (localIsExample || !localHasDebts){
+    // an empty plan only beats a saved one when the person cleared it after seeing that saved plan
+    if (!localIsExample && readBefore && localNewer) return {use:'local', write:true, rule:4};
+    return {use:'account', write:false, rule:2};
+  }
+  if (localNewer) return {use:'local', write:true, rule:3};
+  return {use:'account', write:false, rule:3};
+}
 
-function loadLocal(){
-  try { var s = localStorage.getItem(KEY); return s ? normalise(JSON.parse(s)) : null; }
+// What the save pill says (spec R4). "Saved to your account" only once the latest change is written.
+function saveStatus(f){
+  if (f.unknown) return {s:'none', txt:'Not saving', long:'The page couldn\'t check your account, so it isn\'t saving. Copy a backup before you close it.'};
+  if (f.booting) return {s:'example', txt:'Checking for saved debts', long:'Checking for debts you saved before.'};
+  if (f.example) return {s:'example', txt:'Examples, not saved', long:'You\'re looking at example debts. Nothing is saved until you add your own.'};
+  if (f.cloud){
+    if (f.pending && (f.busy || !f.failed)) return {s:'saving', txt:'Saving...', long:'Saving to your claude.ai account. It\'s already kept in this browser.'};
+    if (f.failed) return {s:'failed', txt:'Not saved to your account yet', long:'Not saved to your claude.ai account yet. It\'s kept in this browser, and the page tries again when you make a change or come back to it.'};
+    return {s:'cloud', txt:'Saved to your account', long:'Saved to your claude.ai account. Only you can see it, and it opens on any device you\'re signed in on.'};
+  }
+  if (f.localOk) return {s:'local', txt:'Saved in this browser', long:'Saved in this browser only. Nobody else can see it. Copy a backup now and then in case the browser is cleared.'};
+  return {s:'none', txt:'Not saving', long:'This browser isn\'t letting the page save. Copy a backup before you close it.'};
+}
+
+// The words under "Use the plan saved in this browser?" (spec R3 addition). The date is the plan's
+// own last change, left out when the plan has none.
+function sharedOfferText(plan){
+  var when = plan.updatedAt ? new Date(plan.updatedAt) : null;
+  var date = when && !isNaN(when.getTime()) ? ' and was last changed on ' + pad(when.getDate()) + '/' + pad(when.getMonth() + 1) + '/' + when.getFullYear() : '';
+  return 'It has ' + plural(plan.debts.length, 'debt') + date + '. It may have been saved by someone else who uses this browser. No leaves it where it is.';
+}
+
+/* ---------- storage: claude.ai account when available, else this browser, else memory only ---------- */
+// How long claude.ai gets to say who the viewer is, then for the db and the first account read
+// together, and for every later account read or write (spec R9, R9a, R4)
+var ID_WAIT = 10000;
+var localOk = true;        // the last write to a browser key worked; the pill only says "Saved in this browser" then
+// The browser copy's key. On claude.ai each signed-in viewer gets a key with their id in it, so one
+// person's plan never reaches another person's account (spec R3). KEY on its own is only for no id.
+// Null until the page knows which it is, and for ever when claude.ai cannot say who the viewer is.
+var localKey = null;
+// The plan on screen has been through the load choice against the copy under localKey, so writing
+// it there cannot replace a plan the page never looked at (spec R2e).
+var localChecked = false;
+var unknownViewer = false; // claude.ai gave no id: the plan stays in memory only (spec R9)
+var cloud = null;          // { ref }
+var cloudTimer = null, retryTimer = null, cloudBusy = false, cloudDirty = false;
+var cloudChange = 0, cloudSaved = 0;   // changes meant for the account, and how many it has had
+var cloudFailed = false;               // the last read or write of the account did not go through
+// updatedAt of the account document as this page last read or wrote it; null until it has seen one.
+// An empty plan may replace the account plan only while the document still has this value (spec R2b).
+var seenAt = null;
+// True on claude.ai until the viewer's own browser copy and the first account read have both landed
+// or failed. Nothing can be added, changed, cleared or deleted until then (spec R2a).
+var booting = false;
+var bootLimit = null;
+var accountRead = false;   // the account document has been read and applied once in this page load
+var sharedPlan = null, sharedAskedKey = '';
+// The plan on screen came from the offer's Yes and has not reached the account yet. It goes there only
+// while the account document has no debts (spec R3).
+var sharedTaken = false;
+
+function readKey(key){
+  try { var s = localStorage.getItem(key); return s ? normalise(JSON.parse(s)) : null; }
   catch(e){ localOk = false; return null; }
 }
+function loadLocal(){ return localKey ? readKey(localKey) : null; }
 function saveLocal(){
-  try { localStorage.setItem(KEY, JSON.stringify(plain(state))); localOk = true; }
+  if (!localKey || !localChecked){ localOk = false; return; }
+  try { localStorage.setItem(localKey, JSON.stringify(plain(state))); localOk = true; }
   catch(e){ localOk = false; }
 }
+// The browser copy under key becomes the page's plan, or the examples when there is none.
+function useBrowserKey(key){
+  localKey = key;
+  state = loadLocal() || exampleState();
+  localChecked = true;
+}
 function persist(){
-  if (state.example) return;
+  if (state.example || booting) return;
   state.updatedAt = new Date().toISOString();
+  $('#sharedOffer').hidden = true;
   saveLocal();
   scheduleCloud();
   renderSaveStatus();
 }
 function scheduleCloud(){
   if (!cloud) return;
+  cloudChange++;
   clearTimeout(cloudTimer);
-  cloudTimer = setTimeout(flushCloud, 800);
+  cloudTimer = setTimeout(syncAccount, 800);
 }
-function flushCloud(retried){
-  if (!cloud || state.example) return Promise.resolve();
+function sendToAccount(){
+  cloudChange++;
+  return syncAccount();
+}
+function cloudPending(){ return cloudSaved < cloudChange; }
+function formOpen(){ return !$('#debtForm').hidden || !$('#updForm').hidden || !$('#offerForm').hidden; }
+function takeAccountPlan(account){
+  state = account;
+  seenAt = account.updatedAt || '';
+  sharedTaken = false;
+  // an account plan with debts ends the offer: Yes could only put the browser's plan over it (spec R3)
+  if (account.debts.length){ sharedPlan = null; $('#sharedOffer').hidden = true; }
+  saveLocal();
+}
+// An account call with no answer within ID_WAIT counts as failed. Its late answer is dropped, so it
+// can neither swap a plan in nor mark a change saved (spec R4, R9a).
+function inTime(call){
+  var timer = null;
+  var answer = new Promise(function(done){ done(call()); });
+  var limit = new Promise(function(done, fail){ timer = setTimeout(function(){ fail({code:'timeout'}); }, ID_WAIT); });
+  return Promise.race([answer, limit]).then(function(v){ clearTimeout(timer); return v; }, function(e){ clearTimeout(timer); throw e; });
+}
+// The only route to the account (spec R2a to R2d, R2f, R2g). It reads the document first, runs the load
+// choice, then takes the account plan or writes this page's plan, never both. Every change, retry,
+// resend and refresh comes through here, and so does the first read while the page is booting.
+function syncAccount(retried){
+  if (!cloud) return Promise.resolve();
   if (cloudBusy){ cloudDirty = true; return Promise.resolve(); }
-  cloudBusy = true;
-  return cloud.ref.set(plain(state)).then(function(){
+  clearTimeout(cloudTimer); clearTimeout(retryTimer);
+  cloudBusy = true; cloudDirty = false;
+  renderSaveStatus();
+  var ref = cloud.ref;
+  return inTime(function(){ return ref.get(); }).then(function(snap){
+    if (unknownViewer) return false;   // the first read came after its time limit: ignored (R9a)
+    var first = !accountRead;
+    // the first read is only applied while the page still waits on it, so nothing made before it
+    // can reach the account (R2g)
+    if (first && !booting) return false;
+    var account = snap.exists ? normalise(snap.data()) : null;
+    var accountHasDebts = !!account && account.debts.length > 0;
+    var seen = !!account && seenAt !== null && (account.updatedAt || '') === seenAt;
+    // the offer's plan never goes over an account plan with debts (R3)
+    var choice = sharedTaken && accountHasDebts ? {use:'account', write:false} : loadChoice(state, account, seen);
+    if (choice.use === 'account'){
+      // a plan is never swapped under an open form; the change stays unsent and is tried again (R2f)
+      if (!booting && formOpen()) return false;
+      takeAccountPlan(account);
+      cloudSaved = cloudChange;
+      if (!booting) render();
+    }
+    accountRead = true;
+    endBoot();
+    if (first && !accountHasDebts) offerSharedPlan();
+    var sending = cloudChange;
+    if (choice.use === 'account' || !choice.write) return sending;
+    var sent = plain(state), fromShared = sharedTaken;
+    return inTime(function(){ return ref.set(sent); }).then(function(){
+      seenAt = sent.updatedAt || '';
+      // the offer's plan is in this person's account now, so it is not offered to anyone else
+      if (fromShared){ sharedTaken = false; try { localStorage.removeItem(KEY); } catch(e){} }
+      return sending;
+    });
+  }).then(function(sent){
     cloudBusy = false;
-    if (cloudDirty){ cloudDirty = false; flushCloud(); }
+    if (sent === false){ if (cloudPending()) cloudFailed = true; }
+    else { cloudSaved = Math.max(cloudSaved, sent); cloudFailed = false; }
+    if (cloudDirty) return syncAccount();
+    renderSaveStatus();
   }, function(e){
     cloudBusy = false;
-    var code = e && e.code;
-    if (code === 'unavailable' && !retried){ setTimeout(function(){ flushCloud(true); }, 1500 + Math.random()*1500); return; }
-    if (code === 'unavailable' || code === 'resource_exhausted') return;
-    cloud = null;            // not allowed to save to the account: this browser only
+    if (unknownViewer) return;
+    var retry = e && e.code === 'unavailable' && !retried;
+    if (!accountRead){
+      // the first read failed: the page keeps waiting through one automatic retry, then treats the
+      // viewer as unknown, so a plan typed now can never reach the account (R2g)
+      if (retry && booting){ retryTimer = setTimeout(function(){ syncAccount(true); }, 1500 + Math.random()*1500); return; }
+      treatAsUnknown();
+      return;
+    }
+    if (retry){
+      retryTimer = setTimeout(function(){ syncAccount(true); }, 1500 + Math.random()*1500);
+      renderSaveStatus();
+      return;
+    }
+    // the browser copy is kept; the next change, or coming back to the page, tries again
+    cloudDirty = false; cloudFailed = true;
     renderSaveStatus();
   });
 }
+// Asks claude.ai who the viewer is, giving up after ID_WAIT (spec R9). Resolves to
+// {id, write} (id null for a viewer with no account), or rejects when the id cannot be found.
+function viewerId(c){
+  var lookup = new Promise(function(done){ done(c.use('user')); }).then(function(user){
+    if (!user) return {id:null, write:null};
+    return Promise.all([user.id(), typeof user.can === 'function' ? user.can('data.write') : null])
+      .then(function(x){ return {id:x[0], write:x[1]}; });
+  });
+  var timer = null;
+  var limit = new Promise(function(done, fail){ timer = setTimeout(function(){ fail(new Error('no id in time')); }, ID_WAIT); });
+  return Promise.race([lookup, limit]).then(function(v){ clearTimeout(timer); return v; }, function(e){ clearTimeout(timer); throw e; });
+}
 function initCloud(){
   var c = window.claude;
-  if (!c || typeof c.use !== 'function') return Promise.resolve();
-  return Promise.all([c.use('db'), c.use('user')]).then(function(r){
-    var db = r[0], user = r[1];
-    if (!db || !user) return;
-    return Promise.all([user.id(), typeof user.can === 'function' ? user.can('data.write') : null]).then(function(x){
-      var id = x[0], canWrite = x[1];
-      if (!id || canWrite === false) return;
-      var ref = db.doc('data/users/' + id + '/state');
-      return ref.get().then(function(snap){
-        cloud = { ref: ref };
-        var remote = snap.exists ? normalise(snap.data()) : null;
-        if (remote && (state.example || booting || (remote.updatedAt || '') > (state.updatedAt || ''))){
-          state = remote; saveLocal(); booting = false; render();
-        } else if (!state.example && !booting){
-          flushCloud();
-        }
-        renderSaveStatus();
-      });
-    });
-  }).catch(function(){ cloud = null; });
+  return viewerId(c).then(function(viewer){
+    // view-only viewers keep the shared key, as before (issue 7 left as it is)
+    if (!viewer.id || viewer.write === false){ useBrowserKey(KEY); endBoot(); return; }
+    var id = viewer.id;
+    useBrowserKey(KEY + ':' + id);
+    // one time limit from here covers the db, the document and the first read with its retry; an
+    // error from any of them is a failed first read (R9a, R2g). endBoot clears it.
+    bootLimit = setTimeout(function(){ if (booting) treatAsUnknown(); }, ID_WAIT);
+    return new Promise(function(done){ done(c.use('db')); }).then(function(db){
+      if (unknownViewer) return;
+      if (!db){ endBoot(); return; }
+      cloud = { ref: db.doc('data/users/' + id + '/state') };
+      return sendToAccount();
+    }).then(null, function(){ if (!unknownViewer) treatAsUnknown(); });
+  }, treatAsUnknown);
 }
+// No id, or no first account read, in time, or a first read that failed: never the shared key, the
+// plan in memory only, and the pill says so (spec R9, R9a, R2g). Anything that answers later in this
+// page load is ignored.
+function treatAsUnknown(){
+  unknownViewer = true;
+  cloud = null; localKey = null; localChecked = false;
+  clearTimeout(cloudTimer); clearTimeout(retryTimer);
+  state = exampleState();
+  endBoot();
+}
+function endBoot(){
+  clearTimeout(bootLimit);
+  if (!booting) return;
+  booting = false;
+  render();
+}
+// A plan under the shared key may be someone else's, so it is offered once, never sent on its own (spec R3).
+function offerSharedPlan(){
+  if (!state.example && state.debts.length) return;
+  var shared = readKey(KEY);
+  if (!shared || !shared.debts.length) return;
+  sharedAskedKey = localKey + ':asked';
+  try { if (localStorage.getItem(sharedAskedKey)) return; } catch(e){ return; }
+  sharedPlan = shared;
+  $('#sharedOfferText').textContent = sharedOfferText(shared);
+  $('#sharedOffer').hidden = false;
+}
+function answerSharedOffer(yes){
+  if (booting) return;
+  try { localStorage.setItem(sharedAskedKey, '1'); } catch(e){}
+  $('#sharedOffer').hidden = true;
+  if (!yes || !sharedPlan) return;
+  // it leaves the shared key only once it is in this person's account (syncAccount), and never goes
+  // over an account plan with debts
+  state = sharedPlan; sharedPlan = null; sharedTaken = true;
+  persist(); render();
+}
+// A read for changes made on another device. Not while a form is open, and syncAccount checks
+// again when the read lands (spec R2f).
 function refreshFromCloud(){
-  if (!cloud || !$('#debtForm').hidden || !$('#updForm').hidden) return;
-  cloud.ref.get().then(function(snap){
-    var remote = snap.exists ? normalise(snap.data()) : null;
-    if (remote && (remote.updatedAt || '') > (state.updatedAt || '')){ state = remote; saveLocal(); render(); }
-  }).catch(function(){});
+  if (!cloud || cloudBusy || formOpen()) return;
+  syncAccount();
+}
+function onPageVisible(){
+  if (booting || !cloud) return;
+  if (cloudFailed || cloudPending()) syncAccount();   // reads first, writes only if this plan still wins (R2d)
+  else refreshFromCloud();
 }
 
 /* ---------- debt rules ---------- */
@@ -946,17 +1150,22 @@ function asNowSim(){
 var state, lastSim = null, chartState = null;
 
 function renderSaveStatus(){
-  var pill = $('#savePill'), sub = $('#dataSub'), s, txt, long;
-  if (state.example){ s = 'example'; txt = 'Examples, not saved'; long = 'You\'re looking at example debts. Nothing is saved until you add your own.'; }
-  else if (booting){ s = 'example'; txt = 'Checking for saved debts'; long = 'Checking for debts you saved before.'; }
-  else if (cloud){ s = 'cloud'; txt = 'Saved to your account'; long = 'Saved to your claude.ai account. Only you can see it, and it opens on any device you\'re signed in on.'; }
-  else if (localOk){ s = 'local'; txt = 'Saved in this browser'; long = 'Saved in this browser only. Nobody else can see it. Copy a backup now and then in case the browser is cleared.'; }
-  else { s = 'none'; txt = 'Not saving'; long = 'This browser isn\'t letting the page save. Copy a backup before you close it.'; }
-  pill.dataset.s = s; pill.textContent = txt; sub.textContent = long;
+  var st = saveStatus({unknown: unknownViewer, example: state.example, booting: booting, cloud: !!cloud, busy: cloudBusy,
+    pending: cloudPending(), failed: cloudFailed, localOk: localOk});
+  var pill = $('#savePill');
+  pill.dataset.s = st.s; pill.textContent = st.txt; $('#dataSub').textContent = st.long;
+}
+
+// While the saved plan is still being read nothing on the page can change it (spec R2a).
+function lockWhileBooting(){
+  $('#topAdd').hidden = booting; $('#topAdd').disabled = booting;
+  ['#copyBackup', '#openRestore', '#doRestore', '#wipeAll'].forEach(function(s){ $(s).disabled = booting; });
+  if (booting){ $('#restoreBox').hidden = true; $('#sharedOffer').hidden = true; }
 }
 
 function render(){
-  $('#exampleBanner').hidden = !state.example;
+  $('#exampleBanner').hidden = booting || !state.example;
+  lockWhileBooting();
   renderSaveStatus();
   var all = state.debts, L = live();
   var showPlan = !booting && L.length > 0;
@@ -1485,6 +1694,7 @@ function renderOffers(sim){
 
 var editingOffer = null;
 function openOffer(id, pre){
+  if (booting) return;
   closeForm(); closeUpdate();
   editingOffer = id || null;
   var f = id ? state.offers.find(function(o){ return o.id === id; }) : null;
@@ -1746,6 +1956,7 @@ function renderSchedule(sim){
 var editingId = null;
 
 function openForm(id){
+  if (booting) return;
   closeUpdate(); closeOffer();
   editingId = id;
   var d = id ? byId(id) : null;
@@ -1948,6 +2159,7 @@ function deleteDebt(){
 }
 
 function openUpdate(){
+  if (booting) return;
   closeForm(); closeOffer();
   $('#updRows').innerHTML = state.debts.map(function(d){
     return (isSplit(d) ? d.parts : [null]).map(function(p){
@@ -1991,6 +2203,7 @@ function disarm(btn){
 }
 
 function clearExamples(){
+  if (booting) return;
   state = emptyState();
   persist();
   render();
@@ -2109,6 +2322,8 @@ $('#compareBox').addEventListener('click', function(e){
   $('.hero').scrollIntoView({behavior:'smooth', block:'start'});
 });
 $('#clearExamples').addEventListener('click', function(){ clearExamples(); openForm(null); });
+$('#sharedYes').addEventListener('click', function(){ answerSharedOffer(true); });
+$('#sharedNo').addEventListener('click', function(){ answerSharedOffer(false); });
 $('#openAdd').addEventListener('click', function(){ if (state.example) clearExamples(); openForm(null); });
 $('#levelList').addEventListener('click', function(e){
   if (!e.target.closest('[data-usesum]')) return;
@@ -2159,8 +2374,9 @@ $('#copyBackup').addEventListener('click', function(){
   var fallback = function(){ out.value = text; out.hidden = false; out.focus(); out.select(); showMsg('Select all of the text below and copy it.'); };
   try { navigator.clipboard.writeText(text).then(done, fallback); } catch(err){ fallback(); }
 });
-$('#openRestore').addEventListener('click', function(){ var b = $('#restoreBox'); b.hidden = !b.hidden; if (!b.hidden) $('#restoreIn').focus(); });
+$('#openRestore').addEventListener('click', function(){ if (booting) return; var b = $('#restoreBox'); b.hidden = !b.hidden; if (!b.hidden) $('#restoreIn').focus(); });
 $('#doRestore').addEventListener('click', function(){
+  if (booting) return;
   var o = null;
   try { o = normalise(JSON.parse($('#restoreIn').value)); } catch(err){ o = null; }
   if (!o){ showMsg('That doesn\'t look like a Debt Snowball backup. Copy the whole thing, including the curly brackets at each end.', true); return; }
@@ -2169,6 +2385,7 @@ $('#doRestore').addEventListener('click', function(){
   showMsg('Restored ' + plural(o.debts.length, 'debt') + '.');
 });
 $('#wipeAll').addEventListener('click', function(e){
+  if (booting) return;
   arm(e.currentTarget, 'Tap again to delete everything', function(){
     state = emptyState(); persist(); render(); showMsg('All debts deleted.');
   });
@@ -2186,29 +2403,18 @@ if ('ResizeObserver' in window){
     clearTimeout(rt); rt = setTimeout(function(){ if (lastSim && !$('#chartSec').hidden) renderChart(lastSim); }, 120);
   }).observe(chartEl);
 }
-document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'visible') refreshFromCloud(); });
+document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'visible') onPageVisible(); });
 
 /* ---------- start ---------- */
-state = loadLocal();
-if (!state){
-  if (window.claude && typeof window.claude.use === 'function'){ booting = true; state = emptyState(); }
-  else state = exampleState();
-}
-render();
-var bootTimer = setTimeout(endBoot, 4000);
-function endBoot(){
-  clearTimeout(bootTimer);
-  if (!booting) return;
-  booting = false;
-  if (!state.debts.length && !state.updatedAt) state = exampleState();
-  render();
-}
-initCloud().then(endBoot, endBoot);
+// On claude.ai nothing is read from this browser until the viewer's id says which key is theirs,
+// and the page waits for the account read with no time limit of its own (spec R2a, R9).
+if (window.claude && typeof window.claude.use === 'function'){ booting = true; state = emptyState(); render(); initCloud(); }
+else { useBrowserKey(KEY); render(); }
 })();
 </script>
 <script>if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
 <script>(function(){
-var BUILD='a2758c73bd',shown=false;
+var BUILD='28d5e81529',shown=false;
 function check(){
   if(shown||location.protocol==='file:')return;
   fetch('version.json?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.json();}).then(function(v){
